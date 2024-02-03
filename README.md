@@ -29,6 +29,9 @@ see chat.opanai.com, for the latter, termi-chat is for you.
 * Switch GPT models while retaining the conversation.  If you want deeper
   answers or simpler/faster/cheaper answers, just restart termi-chat using a
   different model.
+* Press `<ENTER>` to submit the text after seeing how many tokens (in case you are cost conscious).
+* Tracks response times in case you like to know how long it takes to respond.
+
 
 ## Limitations
 
@@ -45,6 +48,14 @@ conda activate termi-chat
 pip install openai
 conda env list
 ```
+
+## User Interface
+
+* The input method allows you to copy/paste and/or type input including new lines.
+  This allows you to format your input for readability.  Use control-d on a line by itself
+  to submit the input.
+* Time and conversation changes are noted so that you are reminded to save your work
+  (though saving is optional).
 
 ## Convert ChatGPT UI conversations to saved context
 
@@ -83,6 +94,10 @@ Then you can keep adding more files.  This is a private git repo you can store s
 especially if you don't want to share the conversations or don't want them on github.com.  You
 will still get history and all github has to offer -- just locally.
 
+## Usage examples
+
+* [Basic usage with just a custom system prompt](./doc/basic_usage.md).
+
 ## Todo
 
 * the context that keeps building will make our usage cost keep getting bigger
@@ -94,3 +109,4 @@ will still get history and all github has to offer -- just locally.
   * add a mechanism so that if the user asks about something, maybe looking for "remember when...",
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
 
+* Make a docker container to make the setup really simple (then add docker or podman to the requirements).
