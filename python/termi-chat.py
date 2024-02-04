@@ -2,19 +2,27 @@
 
 import time
 import textwrap
-from openai import OpenAI
 import json
 import os
-from datetime import datetime
-import glob
 import sys
+import glob
+from datetime import datetime
+from typing import List, Dict, Tuple, Optional
+from openai import OpenAI
 
-def dashes():
-    # Print 80 dashes to separate the user input from the assistant response
-    print("\033[1m\033[91m" + "-" * 80 + "\033[0m")
+# Constants for ANSI color codes
+ANSI_RED = "\033[91m"
+ANSI_GREEN = "\033[92m"
+ANSI_YELLOW = "\033[93m"
+ANSI_BOLD = "\033[1m"
+ANSI_RESET = "\033[0m"
 
-def wrap_text(text, width=80):
-    # Function to wrap text except inside code blocks
+def dashes() -> None:
+    """Print 80 dashes for separation."""
+    print(f"{ANSI_BOLD}{ANSI_RED}{'-' * 80}{ANSI_RESET}")
+
+def wrap_text(text: str, width: int = 80) -> str:
+    """Wrap text except inside code blocks."""
     wrapped_text = ""
     in_code_block = False
     for line in text.split('\n'):
@@ -27,44 +35,59 @@ def wrap_text(text, width=80):
             wrapped_text += textwrap.fill(line, width=width) + '\n'
     return wrapped_text
 
-def print_conversation(messages):
+def print_conversation(messages: List[Dict[str, str]]) -> None:
+    """Print the formatted conversation."""
     for message in messages:
         dashes()
-        timestamp = message.get("timestamp", "202x-xx-xx-xx:xx")
+        timestamp = message.get("timestamp", "Unknown Time")
         formatted_text = wrap_text(message['content'])
-        print(f"{timestamp} \033[1;32m{message['role'].title()}\033[0m: {formatted_text}")
+        print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}: {formatted_text}")
 
-def save_to_file(messages, filename):
+def save_to_file(messages: List[Dict[str, str]], filename: str) -> None:
+    """Save messages to a file."""
     with open(filename, 'w') as file:
         json.dump(messages, file, indent=2)
 
-def load_from_file(filename):
+def load_from_file(filename: str) -> List[Dict[str, str]]:
+    """Load messages from a file."""
     with open(filename, 'r') as file:
         return json.load(file)
 
-def get_timestamp():
+def get_timestamp() -> str:
+    """Return the current timestamp."""
     return datetime.now().strftime("%Y-%m-%d-%H:%M")
 
-def get_multiline_input(prompt, user_name="User"):
-    print("\033[0;33m" + prompt + "\033[0m")  # Light brown color escape sequence
-    print(f"\033[1;32m{user_name}\033[0m, enter your text, then finish with a line containing only Ctrl-D and press Enter.\n")  # Bold green user_name
+def get_multiline_input(prompt: str, user_name: str = "User") -> str:
+    """Get multiline input from the user."""
+    print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}{ANSI_RESET}, enter your text, then finish with Ctrl-D.\n")
     lines = []
     while True:
         try:
             line = input()
-            if line == "\x04":  # Check if line contains only Ctrl-D
+            # Check if line contains only Ctrl-D
+            if line == "\x04":
                 break
             lines.append(line)
         except EOFError:
             break
-    print("\033[31mProcessing...\033[0m\n")  # Red color escape sequence
+    print(f"{ANSI_RED}Processing...{ANSI_RESET}\n")
     return '\n'.join(lines)
 
-def prepare_messages_for_api(messages):
-    # Remove 'timestamp' field before sending to the API
+def prepare_messages_for_api(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Prepare messages for the API by removing timestamps."""
     return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
 
-def load_file(filename):
+def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]:
+    """
+    Load messages from a file.
+
+    Args:
+    - filename (str): The name of the file to load.
+
+    Returns:
+    - Tuple containing the filename, messages, and a string representation of the original messages.
+    """
     if os.path.exists(filename):
         try:
             messages = load_from_file(filename)
@@ -76,7 +99,13 @@ def load_file(filename):
     else:
         print("File does not exist.")
 
-def check_load_file():
+def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
+    """
+    Check if a file should be loaded based on command line arguments.
+
+    Returns:
+    - Tuple containing the filename, messages, and a string representation of the original messages.
+    """
     if "--load" in sys.argv:
         load_file_index = sys.argv.index("--load") + 1
         if load_file_index < len(sys.argv):
@@ -90,20 +119,29 @@ def check_load_file():
                 print("File does not exist.")
     return "", [], None
 
-# If it's a valid model, return the model name. Otherwise, return False
-def validate_model(model):
+def validate_model(model: str) -> Optional[str]:
+    """Validate if the provided model is supported.
+
+    Args:
+    - model (str): The model name to validate.
+
+    Returns:
+    - Optional[str]: The internal model name if supported, None otherwise.
+    """
+
     supported_models = {
         "gpt3.5": "gpt-3.5-turbo-0125",
         "gpt4": "gpt-4-0613"
     }
-    for key, value in supported_models.items():
-        if model == key:
-            return value
-    return False
+    return supported_models.get(model)
 
-# If we specify a model in the command line, use that. Otherwise, use gpt3.5.
-# For unsupported models, exit the program.
-def check_model():
+def check_model() -> str:
+    """Check and return the model specified in command line arguments.
+       For unsupported models, exit the program.
+
+    Returns:
+    - str: The validated model name to be used.
+    """
     if "--model" in sys.argv:
         model_index = sys.argv.index("--model") + 1
         if model_index < len(sys.argv):
@@ -114,7 +152,12 @@ def check_model():
             exit(1)
     return validate_model("gpt3.5")
 
-def check_names():
+def check_names() -> Tuple[str, str]:
+    """Check and return the names specified in command line arguments.
+
+    Returns:
+    - Tuple[str, str]: Names for the assistant and user.
+    """
     if "--names" in sys.argv:
         name_index = sys.argv.index("--names") + 1
         if name_index < len(sys.argv):
@@ -132,7 +175,7 @@ def check_names():
             exit(1)
     return "Assistant", "User"
 
-def help_message():
+def help_message() -> None:
     print()
     print(f"  Usage: {os.path.basename(__file__)} [--load filename] [--model modelname] [--names name1,name2]")
     print()
