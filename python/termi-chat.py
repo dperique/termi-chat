@@ -250,26 +250,6 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
     )
     return response.choices[0].message.content
 
-# def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
-#     """Send a message to the text-generation-webui and return the response.
-#         Returns a response that contains a response.choices[0].message.content"""
-#     url = "http://127.0.0.1:5000/v1/chat/completions"
-#     headers = {"Content-Type": "application/json"}
-
-#     data = {
-#         "messages": api_messages,
-#         "mode": "chat",
-#         "character": model,
-#     }
-#     response = requests.post(url, json=data, headers=headers)
-
-#     if response.status_code == 200:
-#         result = response.json()
-#         return result["choices"][0]["message"]["content"]
-#     else:
-#         print(f"Request failed with status code {response.status_code}: {response.text}")
-#         return response
-
 def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the text-generation-webui in the background and return immediately.
     Returns a response that contains a response.choices[0].message.content once the request is completed."""
@@ -306,7 +286,7 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
     sys.stdout.write("Waiting for response ")
 
     # The spinner is once every 0.1 seconds so we pick a 10 second timeout.
-    for _ in range(10):
+    for _ in range(100):
         sys.stdout.write(next(spinner))
         sys.stdout.flush()
 
