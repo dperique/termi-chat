@@ -1,6 +1,6 @@
-# Makefile for building and pushing Docker images using Docker or Podman
 
-# Variables
+# This goes to my docker hub account; change it if you want to
+# push to your own account.
 IMAGE_NAME := dperique/termi-chat
 VERSION := $(shell cat VERSION)
 ENGINE := podman # Default to docker, change to podman if needed
@@ -18,12 +18,12 @@ push:
 	@echo "Pushing Docker image with version $(VERSION) using $(ENGINE)"
 	@$(ENGINE) push $(IMAGE_NAME):$(VERSION)
 
-# Utility targets to switch between Docker and Podman
+# targets for Docker and Podman engines
 use-docker:
 	@$(eval ENGINE := docker)
-	@echo "Container engine set to Docker"
+	@echo "Using Docker"
 
 use-podman:
 	@$(eval ENGINE := podman)
-	@echo "Container engine set to Podman"
+	@echo "Using Podman"
 

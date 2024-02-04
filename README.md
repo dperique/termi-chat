@@ -109,12 +109,17 @@ podman login -u <YourUserId>
 make push
 ```
 
+For running from a container, you only need `docker` or `podman`.  I create a directory
+where my conversations will be saved at `/home/dperique/termi-chats`, set my API key,
+and then run:
+
 ```bash
+mkdir /home/dperique/termi-chats
+export OPENAI_API_KEY=sk...
 podman run -it --rm \
     -v /home/dperique/termi-chats:/termi-chats \
     -e OPENAI_API_KEY=${OPENAI_API_KEY} \
-    dperique/termi-chat:v0.1 \
-    --load /termi-chats/dennis_golang.json --model gpt3.5 --names Cassy,Dennis
+    dperique/termi-chat:${VERSION} --load /termi-chats/dennis_golang.json --model gpt3.5 --names Cassy,Dennis
 ```
 
 ## Todo
@@ -127,5 +132,3 @@ podman run -it --rm \
     * think of things you would remember in human conversations and what most people tend to forget
   * add a mechanism so that if the user asks about something, maybe looking for "remember when...",
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
-
-* Make a docker container to make the setup really simple (then add docker or podman to the requirements).
