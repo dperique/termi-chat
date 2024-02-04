@@ -6,11 +6,11 @@ import json
 import os
 import sys
 import glob
-import threading
 import requests
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
+from spinner import Spinner
 
 # Constants for ANSI color codes
 ANSI_RED = "\033[91m"
@@ -240,35 +240,6 @@ def help_message() -> None:
 if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
-
-class Spinner:
-    def __init__(self, timeout=60):
-        self.timeout = timeout
-        self.spinner_thread = None
-        self.response = None
-
-    def _spinning_cursor(self) -> str:
-        while self.spinner_thread.is_alive():
-            for i in range(9):
-                yield "≈"
-                time.sleep(0.1)
-            yield "•"
-
-    def start(self, target_function, *args, **kwargs):
-        self.spinner_thread = threading.Thread(target=target_function, args=args, kwargs=kwargs)
-        self.spinner_thread.start()
-        spinner = self._spinning_cursor()
-        sys.stdout.write("Waiting for response ")
-
-        for _ in range(self.timeout * 10):
-            sys.stdout.write(next(spinner))
-            sys.stdout.flush()
-
-            if self.response is not None:
-                break
-
-    def set_response(self, response):
-        self.response = response
 
 def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the OpenAI API and return the response.
