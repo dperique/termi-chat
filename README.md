@@ -9,11 +9,17 @@ Termi-Chat is a chatbot similar to the ChatGPT webUI but requires only a termina
 Some of us like webapges but sometimes you just want a terminal, for the former,
 see chat.opanai.com, for the latter, termi-chat is for you.
 
+NOTE: there are a ton of chatbots that use the OpenAI API.  The `termi-chat`
+app solves my particular style of use: speed, custom (editable) context, with
+conversations that can be saved and searched, plain text that can be easily
+manipulated.
+
 ## Requirements
 
-* Openai API Key
+* Openai [API Key](https://platform.openai.com/api-keys)
 * Python and the openai package (via `pip install openai`)
 * Terminal where you can run termi-chat.py
+* Podman or Docker if you want to run in a container
 
 ## Features
 
@@ -21,8 +27,8 @@ see chat.opanai.com, for the latter, termi-chat is for you.
 * Colored text for easy reading.
 * No streaming -- just give me the answers!
 * Save and load your conversation so you can have a longer term conversation
-  * Conversations are simple json so you can add to or remove from more easily
-  * Conversations are text which means you can archive and search them
+  * Conversations are simple json so you can add/remove to/from more easily
+  * Conversations are plain text which means you can archive and search them
     as easily as you can with your notes.  ChatGPT conversations become a part
     of your notes vs. asking over and over for the same thing.
   * Gives a good way to organize and manage your conversations.
@@ -35,10 +41,12 @@ see chat.opanai.com, for the latter, termi-chat is for you.
 
 ## Limitations
 
-* No image support
+* No image (dalle) support
 
 
 ## Environment setup
+
+### Conda for python environemnt
 
 I use `conda` but you can use any python environment tool.
 
@@ -49,6 +57,10 @@ pip install openai
 conda env list
 ```
 
+### Running in a container
+
+If you want to run termi-chat in container, you'll need one of [podman](podman.io) or [docker](docker.com).
+
 ## User Interface
 
 * The input method allows you to copy/paste and/or type input including new lines.
@@ -56,6 +68,47 @@ conda env list
   to submit the input.
 * Time and conversation changes are noted so that you are reminded to save your work
   (though saving is optional).
+* I purposely ask you to press `<ENTER>` to send the message.  This gives a final chance
+  to see what you typed and how many tokens it will consume *before* sending it to the
+  model.  Remember OpenAI charges by the token and if your context is too big, some of
+  it will be lost.  You can type `cancel` if you don't want to send the text and that
+  text will be removed from the context.
+
+### Suggested Workflow
+
+ * Make a directory somewhere and create a git repo in it; this will allow you to track changes
+   to your conversations and/or modify them to prune out content you don't want to retain or
+   use for future conversations (e.g., smalltalk, bad answers, long answers, unnecessary code
+   snippets, etc.).
+ * Start with a basic converation that has only a system prompt with enough information
+   to prime the model for answering questions in a productive way like this below:
+
+   ```json
+   [
+     {
+      "role": "system",
+      "content": "You are a helpful assistant who is versed in software engineering, AI, and LLMs.  Your way of communicating is casual but you can get into the very technical details upon request.  You use emoji in your communication once in a while and are encouraging as a mentor would be.  You are talking to Dennis who is a software engineer who knows Linux, and has written programs in go, python, javascript, and running on Kubernetes"
+     }
+   ]
+   ```
+
+   The above sets the model up so you can ask it programming questions and it won't be inclined to take
+   up space/tokens to explain basic programming concepts.
+
+  * As you build enough conversation content, save often to and do `git diff` to see what change; commit
+    the changes or discard them as you go (similar to how you would for code changes).
+  * Store the git repo of conversations somewhere safe (backed up and secure) as these are now part of your
+    permanent notes.
+  * Monitor your [API usage](https://platform.openai.com/usage) to ensure you're not using too much of your
+    credits.  Note the [openapi costs](https://openai.com/pricing#language-models) listed here and copied
+    from that page for convenience (thoug they may change):
+
+    * for gpt3.5: $0.0005/1K tokens, $0.0015/1K tokens
+    * for gpt4: $0.03/1K tokens, $0.06/1K tokens
+  * A good time to switch to `termi-chat`` is when you've reached the OpenAI chatgpt4 usage cap of
+    40 messages/per hour.  API usage and chatgpt webUI (plus accounts) are billed separately so API
+    usage is not subject to usage caps.
+
 
 ## Convert ChatGPT UI conversations to saved context
 
@@ -98,7 +151,9 @@ will still get history and all github has to offer -- just locally.
 
 * [Basic usage with just a custom system prompt](./doc/basic_usage.md).
 
-## Build, push, run as container
+## Development: Build, push, run as container
+
+### Building and pushing the container
 
 Bump the version number in `VERSION`.
 
@@ -109,9 +164,11 @@ podman login -u <YourUserId>
 make push
 ```
 
+### Running the container
+
 For running from a container, you only need `docker` or `podman`.  I create a directory
-where my conversations will be saved at `/home/dperique/termi-chats`, set my API key,
-and then run:
+where my conversations will be saved at `/home/dperique/termi-chats`, set my
+[API key](https://platform.openai.com/api-keys), and then run:
 
 ```bash
 mkdir /home/dperique/termi-chats
