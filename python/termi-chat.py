@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import glob
+import threading
 import requests
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
@@ -269,13 +270,6 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
 #         print(f"Request failed with status code {response.status_code}: {response.text}")
 #         return response
 
-import sys
-import time
-import threading
-import requests
-from typing import List, Dict
-from openai import OpenAI
-
 def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the text-generation-webui in the background and return immediately.
     Returns a response that contains a response.choices[0].message.content once the request is completed."""
@@ -299,38 +293,39 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
     spinner_thread = threading.Thread(target=post_request)
     spinner_thread.start()
 
+    # produce an = every .1 seconds with a dot every second give a visual
+    # indication of how long we're waiting for a response.
     def spinning_cursor() -> str:
         while spinner_thread.is_alive():
-            for i in range(5):
+            for i in range(9):
                 yield "≈"
-                time.sleep(0.2)
+                time.sleep(0.1)
             yield "•"
 
     spinner = spinning_cursor()
     sys.stdout.write("Waiting for response ")
 
-    for _ in range(100):  # Adjust the number of iterations based on your preference
+    # The spinner is once every 0.1 seconds so we pick a 10 second timeout.
+    for _ in range(10):
         sys.stdout.write(next(spinner))
         sys.stdout.flush()
-        time.sleep(0.1)
 
         if response is not None:
-            break  # Response is available, break out of the loop
+            # Response is available.
+            break
 
     if response is None:
-        print("Timeout condition: Request took too long to complete")
+        print(f"{ANSI_BOLD}{ANSI_RED}\nTimeout condition: Request took too long to complete{ANSI_RESET}")
 
     if response and response.status_code == 200:
-        sys.stdout.write('\b')  # Erase the spinning cursor
         sys.stdout.flush()
         result = response.json()
         return result["choices"][0]["message"]["content"]
     else:
-        sys.stdout.write('\b')  # Erase the spinning cursor
         sys.stdout.flush()
         if response:
             print(f"Request failed with status code {response.status_code}: {response.text}")
-        return f"Error talking to model {model}: {str(response)}"
+        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
 # Initialize the OpenAI client
 client = OpenAI()
