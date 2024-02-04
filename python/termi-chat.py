@@ -64,41 +64,13 @@ def prepare_messages_for_api(messages):
     # Remove 'timestamp' field before sending to the API
     return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
 
-def choose_system_prompt():
-    system_prompt_file = None
-    default_systemp_prompt = [{"role": "system", "content": "You are a helpful assistant."}]
-    if "--system" in sys.argv:
-        system_prompt_file_index = sys.argv.index("--system") + 1
-        if system_prompt_file_index < len(sys.argv):
-            system_prompt_file = sys.argv[system_prompt_file_index]
-
-    if system_prompt_file:
-        if system_prompt_file == "0":
-            return default_systemp_prompt
-        try:
-            with open(system_prompt_file, 'r') as file:
-                return json.load(file)
-        except Exception as e:
-            print(f"Error reading system prompt file: {e}")
-
-    files = glob.glob('*_system_prompt.json')
-    print("Choose a system prompt:")
-    print("0. Use default prompt")
-    for i, file in enumerate(files, start=1):
-        print(f"{i}. {file}")
-    choice = input("Enter your choice (default is 0): ")
-    if choice.isdigit() and 0 < int(choice) <= len(files):
-        with open(files[int(choice)-1], 'r') as file:
-            return json.load(file)
-    return default_systemp_prompt
-
 def load_file(filename):
     if os.path.exists(filename):
         try:
             messages = load_from_file(filename)
             original_messages = json.dumps(messages)  # Update original state after loading
             print(f"Context loaded from {filename}.")
-            return messages, original_messages
+            return filename, messages, original_messages
         except Exception as e:
             print(f"Error loading file: {e}")
     else:
@@ -116,7 +88,7 @@ def check_load_file():
                     print(f"Error loading file: {e}")
             else:
                 print("File does not exist.")
-    return [], None
+    return "", [], None
 
 # If it's a valid model, return the model name. Otherwise, return False
 def validate_model(model):
@@ -162,30 +134,25 @@ def check_names():
 
 def help_message():
     print()
-    print(f"  Usage: {os.path.basename(__file__)} [--load filename] [--model modelname] [--system filename]")
+    print(f"  Usage: {os.path.basename(__file__)} [--load filename] [--model modelname] [--names name1,name2]")
     print()
     print("    --load filename: Load conversation context from a file (contains system prompt)")
     print("    --model modelname: Choose a model to use (gpt3.5 or gpt4)")
-    print("    --system filename: Choose a system prompt file (with no context)")
     print("    --names name1,name2: Choose names for the assistant and user")
     print()
 
 if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
+
 # Initialize the OpenAI client
 client = OpenAI()
 
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
-messages, original_messages = check_load_file()
+filename, messages, original_messages = check_load_file()
 
 # If user did --model modelname, we'll use that model. Otherwise, we'll use gpt3.5.
 model = check_model()
-
-# If user did --system filename, we'll use that system prompt. Otherwise, we'll ask them to choose a system prompt.
-if len(messages) == 0:
-    messages = choose_system_prompt()
-    original_messages = json.dumps(messages)  # Track original state for save reminder
 
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
 assistant_name, user_name = check_names()
@@ -209,14 +176,19 @@ while True:
         print("Conversation context cleared. Starting over.")
 
     elif user_input.lower() == 'save':
-        filename = input("Enter filename to save the context: ")
-        save_to_file(messages, filename)
+        tmpOutputFilename = input("Enter filename to save the context (enter means current one): ")
+        if tmpOutputFilename == "":
+            tmpOutputFilename = filename
+        save_to_file(messages, tmpOutputFilename)
         original_messages = json.dumps(messages)  # Update original state after saving
-        print(f"Context saved to {filename}.")
+        print(f"Context saved to {tmpOutputFilename}.")
+
+        # The filename is updated to the saved filename.
+        filename = tmpOutputFilename
 
     elif user_input.lower() == 'load':
-        filename = input("Enter filename to load the context: ")
-        messages, original_messages = load_file(load_file)
+        tmpInputFilename = input("Enter filename to load the context: ")
+        filename, messages, original_messages = load_file(tmpInputFilename)
 
     elif user_input.lower() == 'quit':
         if original_messages != json.dumps(messages):
