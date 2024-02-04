@@ -39,9 +39,10 @@ def print_conversation(messages: List[Dict[str, str]]) -> None:
     """Print the formatted conversation."""
     for message in messages:
         dashes()
-        timestamp = message.get("timestamp", "Unknown Time")
+        timestamp = message.get("timestamp", "->")
         formatted_text = wrap_text(message['content'])
-        print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}: {formatted_text}")
+        print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
+        print(formatted_text)
 
 def save_to_file(messages: List[Dict[str, str]], filename: str) -> None:
     """Save messages to a file."""
@@ -60,7 +61,7 @@ def get_timestamp() -> str:
 def get_multiline_input(prompt: str, user_name: str = "User") -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}{ANSI_RESET}, enter your text, then finish with Ctrl-D.\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}{ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
     lines = []
     while True:
         try:
