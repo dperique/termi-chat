@@ -109,6 +109,20 @@ If you want to run termi-chat in container, you'll need one of [podman](podman.i
     40 messages/per hour.  API usage and chatgpt webUI (plus accounts) are billed separately so API
     usage is not subject to usage caps.
 
+### Changing the model
+
+Sometimes you're in a conversation with the more expensive gpt4 model and want to start asking
+questions about coding.  A lot of times, you don't need gpt4 for this.  So, save your work, quit
+and restart termi-chat with the gpt3.5 model using the `--load <conversation.json>` option to
+load your existing conversation in.  Now you can continue the conversation on the less expensive
+model.  Compare this with the ChatGPT webUI where you'd have to repeat your conversation when you
+switch models.
+
+
+### Example script to allow you to select conversations
+
+Since there's no webUI, you'll have to make up your own script to select conversations if you
+need this convenience.  The [select.sh](./utilities/select.sh) is an example.
 
 ## Convert ChatGPT UI conversations to saved context
 
@@ -189,3 +203,4 @@ podman run -it --rm \
     * think of things you would remember in human conversations and what most people tend to forget
   * add a mechanism so that if the user asks about something, maybe looking for "remember when...",
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
+* Add support for local LLM.
