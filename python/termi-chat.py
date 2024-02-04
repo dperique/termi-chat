@@ -241,18 +241,72 @@ if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
 
+class Spinner:
+    def __init__(self, timeout=60):
+        self.timeout = timeout
+        self.spinner_thread = None
+        self.response = None
+
+    def _spinning_cursor(self) -> str:
+        while self.spinner_thread.is_alive():
+            for i in range(9):
+                yield "≈"
+                time.sleep(0.1)
+            yield "•"
+
+    def start(self, target_function, *args, **kwargs):
+        self.spinner_thread = threading.Thread(target=target_function, args=args, kwargs=kwargs)
+        self.spinner_thread.start()
+        spinner = self._spinning_cursor()
+        sys.stdout.write("Waiting for response ")
+
+        for _ in range(self.timeout * 10):
+            sys.stdout.write(next(spinner))
+            sys.stdout.flush()
+
+            if self.response is not None:
+                break
+
+    def set_response(self, response):
+        self.response = response
+
 def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the OpenAI API and return the response.
-        Returns a response that contains a response.choices[0].message.content"""
-    response = client.chat.completions.create(
-        model=model,
-        messages=api_messages
-    )
-    return response.choices[0].message.content
+        Returns a response from the model once complete (or error (e.g., timeout))"""
+
+    spinner = Spinner()
+
+    def send_request():
+        nonlocal spinner
+        try:
+            spinner.set_response(client.chat.completions.create(
+                model=model,
+                messages=api_messages
+            ))
+        except Exception as e:
+            print(f"Error: {e}")
+
+    spinner.start(send_request)
+
+    # Handle the response after spinner finishes
+    response = spinner.response
+
+    if response is None:
+        print(f"{ANSI_BOLD}{ANSI_RED}\nTimeout condition: Request took too long to complete{ANSI_RESET}")
+
+    sys.stdout.flush()
+
+    # OpenAI has to status code -- so if we get a response, we assume 200 OK.
+    # See https://community.openai.com/t/http-status-for-chat-completion/541491
+    if response:
+        return response.choices[0].message.content
+    else:
+        print(f"Request failed with unknown status code")
+        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
 def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the text-generation-webui in the background and return immediately.
-    Returns a response that contains a response.choices[0].message.content once the request is completed."""
+        Returns a response from the model once complete (or error (e.g., timeout))"""
     url = "http://127.0.0.1:5000/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
 
@@ -261,38 +315,19 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
         "mode": "chat",
         "character": model,
     }
+    spinner = Spinner()
 
     def post_request():
-        nonlocal response
+        nonlocal spinner
         try:
-            response = requests.post(url, json=data, headers=headers)
+            spinner.set_response(requests.post(url, json=data, headers=headers))
         except Exception as e:
             print(f"Error: {e}")
 
-    response = None
-    spinner_thread = threading.Thread(target=post_request)
-    spinner_thread.start()
+    spinner.start(post_request)
 
-    # produce an = every .1 seconds with a dot every second give a visual
-    # indication of how long we're waiting for a response.
-    def spinning_cursor() -> str:
-        while spinner_thread.is_alive():
-            for i in range(9):
-                yield "≈"
-                time.sleep(0.1)
-            yield "•"
-
-    spinner = spinning_cursor()
-    sys.stdout.write("Waiting for response ")
-
-    # The spinner is once every 0.1 seconds so we pick a 10 second timeout.
-    for _ in range(100):
-        sys.stdout.write(next(spinner))
-        sys.stdout.flush()
-
-        if response is not None:
-            # Response is available.
-            break
+    # Handle the response after spinner finishes
+    response = spinner.response
 
     if response is None:
         print(f"{ANSI_BOLD}{ANSI_RED}\nTimeout condition: Request took too long to complete{ANSI_RESET}")
