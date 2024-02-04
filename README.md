@@ -98,6 +98,25 @@ will still get history and all github has to offer -- just locally.
 
 * [Basic usage with just a custom system prompt](./doc/basic_usage.md).
 
+## Build, push, run as container
+
+Bump the version number in `VERSION`.
+
+```bash
+make use-podman ;# or make use-docker
+make build
+podman login -u <YourUserId>
+make push
+```
+
+```bash
+podman run -it --rm \
+    -v /home/dperique/termi-chats:/termi-chats \
+    -e OPENAI_API_KEY=${OPENAI_API_KEY} \
+    dperique/termi-chat:v0.1 \
+    --load /termi-chats/dennis_golang.json --model gpt3.5 --names Cassy,Dennis
+```
+
 ## Todo
 
 * the context that keeps building will make our usage cost keep getting bigger
