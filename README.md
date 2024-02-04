@@ -37,6 +37,7 @@ manipulated.
     of your notes vs. asking over and over for the same thing.
   * Gives a good way to organize and manage your conversations.
 * Press `<ENTER>` to submit the text after seeing how many tokens (in case you are cost conscious).
+  * use the `max` command to use only the last `n` messages for the context (reduces token count).
 * Tracks response times in case you like to know how long it takes to respond.
 
 
@@ -208,4 +209,4 @@ podman run -it --rm \
 * Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
   text to a specific instance.  Then you can have two conversations.  You can then use two different models
   at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
-  
+

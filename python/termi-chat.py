@@ -35,9 +35,9 @@ def wrap_text(text: str, width: int = 80) -> str:
             wrapped_text += textwrap.fill(line, width=width) + '\n'
     return wrapped_text
 
-def print_conversation(messages: List[Dict[str, str]]) -> None:
+def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None:
     """Print the formatted conversation."""
-    for message in messages:
+    for message in messages[-max_context:]:
         dashes()
         timestamp = message.get("timestamp", "->")
         formatted_text = wrap_text(message['content'])
@@ -62,10 +62,10 @@ def get_timestamp() -> str:
     """Return the current timestamp."""
     return datetime.now().strftime("%Y-%m-%d-%H:%M")
 
-def get_multiline_input(prompt: str, user_name: str = "User") -> str:
+def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}{ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
     lines = []
     while True:
         try:
@@ -79,9 +79,14 @@ def get_multiline_input(prompt: str, user_name: str = "User") -> str:
     print(f"{ANSI_RED}Processing...{ANSI_RESET}\n")
     return '\n'.join(lines)
 
-def prepare_messages_for_api(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    """Prepare messages for the API by removing timestamps."""
-    return [{"role": msg["role"], "content": msg["content"]} for msg in messages]
+def prepare_messages_for_api(messages: List[Dict[str, str]], max_context: int) -> List[Dict[str, str]]:
+     """Prepare messages for the API by extracting only what the api needs
+        and limit messages to the last n messages where n is max_context.
+        Remember a message is a role/context pair where role can be either
+        assistant or user"""
+
+     # Limit messages to the last n=max_context messages
+     return [{"role": msg["role"], "content": msg["content"]} for msg in messages[-max_context:]]
 
 def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]:
     """
@@ -103,6 +108,28 @@ def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]
             print(f"Error loading file: {e}")
     else:
         print("File does not exist.")
+
+def check_max_context() -> int:
+    """Check and return the max context specified in command line arguments.
+       If you have a conversation with a large number of back and forth messages,
+       the context gets rather big.  You can limit the context to the last n
+       messages (a lot of the time, the most recent messages are the most
+       relevant anyway).
+
+    Returns:
+    - int: The max context to be used.
+    """
+    if "--max" in sys.argv:
+        max_context_index = sys.argv.index("--max") + 1
+        if max_context_index < len(sys.argv):
+            try:
+                return int(sys.argv[max_context_index])
+            except ValueError:
+                print("Invalid max context value. Please enter an integer.")
+                exit(1)
+
+    # Default max context
+    return 100
 
 def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
     """
@@ -187,6 +214,7 @@ def help_message() -> None:
     print("    --load filename: Load conversation context from a file (contains system prompt)")
     print("    --model modelname: Choose a model to use (gpt3.5 or gpt4)")
     print("    --names name1,name2: Choose names for the assistant and user")
+    print("    --max number: set max previous messages to use for context (this uses less tokens)")
     print()
 
 if "--help" in sys.argv or "-h" in sys.argv:
@@ -205,15 +233,28 @@ model = check_model()
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
 assistant_name, user_name = check_names()
 
+# if user did --max, we'll use that max context. Otherwise, we'll use the default max context.
+max_context = check_max_context()
+
 # Track the time so we can store it with the messages.
 timestamps = [get_timestamp()]
 
 # Start an infinite loop to keep the conversation going
 while True:
-    user_input = get_multiline_input("\nEnter your command (type 'help' for options), or your conversation text:", user_name)
+    user_input = get_multiline_input(model, max_context, user_name, "\nEnter your command (type 'help' for options), or your conversation text:")
 
     if user_input.lower() == 'help':
-        print("Commands:\n  'view' - See conversation context\n  'clear' - Start over the conversation\n  'save' - Save conversation context\n  'load' - Load conversation context\n  'model' - Choose a different model\n  'quit' - Quit the program\n  'help' - Show this help message\n  Enter anything else to continue the conversation.")
+        print("Commands:")
+        print("Enter anything else to continue the conversation.")
+        print("  'clear' - Start over the conversation")
+        print("  'load'  - Load conversation context")
+        print("  'max'   - Set max back context")
+        print("  'model' - Choose a different model")
+        print("  'save'  - Save conversation context")
+        print("  'view'  - See conversation context")
+        print()
+        print("  'help'  - Show this help message")
+        print("  'quit'  - Quit the program")
 
     elif user_input.lower() == 'model':
         model = input("Enter the model name (gpt3.5 or gpt4): ")
@@ -222,9 +263,13 @@ while True:
             print("Unsupported model. Please choose gpt3.5 or gpt4.")
         else:
             print(f"Model changed to {model}.")
-            
+
+    elif user_input.lower() == 'max':
+        max_context = int(input("Enter the max context to use: "))
+        print(f"Max context changed to {max_context}.")
+
     elif user_input.lower() == 'view':
-        print_conversation(messages)
+        print_conversation(messages, max_context)
 
     elif user_input.lower() == 'clear':
         messages = [{"role": "system", "content": "You are a helpful assistant.", "timestamp": get_timestamp()}]
@@ -254,7 +299,7 @@ while True:
             break
     else:
         messages.append({"role": "user", "content": user_input, "timestamp": get_timestamp()})
-        api_messages = prepare_messages_for_api(messages)
+        api_messages = prepare_messages_for_api(messages, max_context)
 
         # Calculate tokens
         total_chars = sum(len(msg['content']) for msg in api_messages)
