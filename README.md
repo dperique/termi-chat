@@ -211,6 +211,10 @@ podman run -it --rm \
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
 * Add support for local LLM such that you can select the model by name instead of just whatever
   is currently running.
+* When running with local LLM within the container, we cannot see the correct url from within the container
+  (because containers have their own localhost).
+* Make a way to access http://localhost:5000 from within the container
+  * We can use an outside address but add a `--host` option with 127.0.0.1 as default.
 * Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
   text to a specific instance.  Then you can have two conversations.  You can then use two different models
   at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4

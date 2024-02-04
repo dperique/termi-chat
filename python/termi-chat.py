@@ -278,7 +278,7 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
 def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
     """Send a message to the text-generation-webui in the background and return immediately.
         Returns a response from the model once complete (or error (e.g., timeout))"""
-    url = "http://127.0.0.1:5000/v1/chat/completions"
+    url = "http://192.168.1.52:5089/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
 
     data = {
@@ -313,8 +313,10 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
             print(f"Request failed with status code {response.status_code}: {response.text}")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
-# Initialize the OpenAI client
-client = OpenAI()
+# We only need the OpenAI client if we are using an OpenAI model
+# This makes it so you don't need an API key if you are using a
+# local model.
+openaiClient = None
 
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
 filename, messages, original_messages = check_load_file()
@@ -408,9 +410,12 @@ while True:
         start_time = time.time()  # Start timing
 
         if family == "openai":
-            assistant_response = send_message_to_openai(client, model, api_messages)
+            if openaiClient is None:
+                # Initialize the OpenAI client
+                openaiClient = OpenAI()
+            assistant_response = send_message_to_openai(openaiClient, model, api_messages)
         elif family == "textgeneration-webui":
-            assistant_response = send_message_to_local_TGWI(client, model, api_messages)
+            assistant_response = send_message_to_local_TGWI(openaiClient, model, api_messages)
         else:
             print(f"Unsupported model family: {family}")
             exit(1)
