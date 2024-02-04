@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import glob
+import requests
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
@@ -16,6 +17,28 @@ ANSI_GREEN = "\033[92m"
 ANSI_YELLOW = "\033[93m"
 ANSI_BOLD = "\033[1m"
 ANSI_RESET = "\033[0m"
+
+# When you add a new model, add it to the SUPPORTED_MODELS dictionary
+# and add a model family to the MODEL_FAMILIES dictionary.
+SUPPORTED_MODELS = {
+    # 16K context, optimized for dialog
+    # $0.0005/1K tokens-in, $0.0015/1K tokens-out
+    "gpt3.5": "gpt-3.5-turbo-0125",
+    "gpt4": "gpt-4-0613",
+
+    # 4K context using whatever is running on the text-generation-webui
+    "Cassie": "Cassie",
+    "Assistant": "Assistant"
+}
+MODEL_FAMILIES = {
+    "gpt3.5": "openai",
+    "gpt4": "openai",
+    "Cassie": "textgeneration-webui",
+    "Assistant": "textgeneration-webui"
+}
+
+MODEL_LIST = ", ".join(SUPPORTED_MODELS.keys())
+DEFAULT_MODEL = "gpt3.5"
 
 def dashes() -> None:
     """Print 80 dashes for separation."""
@@ -151,23 +174,19 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
                 print("File does not exist.")
     return "", [], None
 
-def validate_model(model: str) -> Optional[str]:
+def validate_model(model: str) -> Tuple[str, str]:
     """Validate if the provided model is supported.
 
     Args:
     - model (str): The model name to validate.
 
     Returns:
-    - Optional[str]: The internal model name if supported, None otherwise.
+    - Optional[str]: The internal model name if supported, None otherwise; the model family if supported, None otherwise.
+    - Optional[str]: The model family if supported, None otherwise.
     """
+    return SUPPORTED_MODELS.get(model), MODEL_FAMILIES.get(model)
 
-    supported_models = {
-        "gpt3.5": "gpt-3.5-turbo-0125",
-        "gpt4": "gpt-4-0613"
-    }
-    return supported_models.get(model)
-
-def check_model() -> str:
+def check_model() -> Tuple[str, str]:
     """Check and return the model specified in command line arguments.
        For unsupported models, exit the program.
 
@@ -177,12 +196,12 @@ def check_model() -> str:
     if "--model" in sys.argv:
         model_index = sys.argv.index("--model") + 1
         if model_index < len(sys.argv):
-            model = validate_model(sys.argv[model_index])
+            model, family = validate_model(sys.argv[model_index])
             if model:
-                return model
+                return model, family
             print(f"Unsupported model: {sys.argv[model_index]}")
             exit(1)
-    return validate_model("gpt3.5")
+    return validate_model(DEFAULT_MODEL)
 
 def check_names() -> Tuple[str, str]:
     """Check and return the names specified in command line arguments.
@@ -211,15 +230,107 @@ def help_message() -> None:
     print()
     print(f"  Usage: {os.path.basename(__file__)} [--load filename] [--model modelname] [--names name1,name2]")
     print()
-    print("    --load filename: Load conversation context from a file (contains system prompt)")
-    print("    --model modelname: Choose a model to use (gpt3.5 or gpt4)")
-    print("    --names name1,name2: Choose names for the assistant and user")
-    print("    --max number: set max previous messages to use for context (this uses less tokens)")
+    print(f"    --load filename: Load conversation context from a file (contains system prompt)")
+    print(f"    --model modelname: Choose a model to use ({MODEL_LIST})")
+    print(f"    --names name1,name2: Choose names for the assistant and user")
+    print(f"    --max number: set max previous messages to use for context (this uses less tokens)")
     print()
 
 if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
+
+def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
+    """Send a message to the OpenAI API and return the response.
+        Returns a response that contains a response.choices[0].message.content"""
+    response = client.chat.completions.create(
+        model=model,
+        messages=api_messages
+    )
+    return response.choices[0].message.content
+
+# def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
+#     """Send a message to the text-generation-webui and return the response.
+#         Returns a response that contains a response.choices[0].message.content"""
+#     url = "http://127.0.0.1:5000/v1/chat/completions"
+#     headers = {"Content-Type": "application/json"}
+
+#     data = {
+#         "messages": api_messages,
+#         "mode": "chat",
+#         "character": model,
+#     }
+#     response = requests.post(url, json=data, headers=headers)
+
+#     if response.status_code == 200:
+#         result = response.json()
+#         return result["choices"][0]["message"]["content"]
+#     else:
+#         print(f"Request failed with status code {response.status_code}: {response.text}")
+#         return response
+
+import sys
+import time
+import threading
+import requests
+from typing import List, Dict
+from openai import OpenAI
+
+def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
+    """Send a message to the text-generation-webui in the background and return immediately.
+    Returns a response that contains a response.choices[0].message.content once the request is completed."""
+    url = "http://127.0.0.1:5000/v1/chat/completions"
+    headers = {"Content-Type": "application/json"}
+
+    data = {
+        "messages": api_messages,
+        "mode": "chat",
+        "character": model,
+    }
+
+    def post_request():
+        nonlocal response
+        try:
+            response = requests.post(url, json=data, headers=headers)
+        except Exception as e:
+            print(f"Error: {e}")
+
+    response = None
+    spinner_thread = threading.Thread(target=post_request)
+    spinner_thread.start()
+
+    def spinning_cursor() -> str:
+        while spinner_thread.is_alive():
+            for i in range(5):
+                yield "≈"
+                time.sleep(0.2)
+            yield "•"
+
+    spinner = spinning_cursor()
+    sys.stdout.write("Waiting for response ")
+
+    for _ in range(100):  # Adjust the number of iterations based on your preference
+        sys.stdout.write(next(spinner))
+        sys.stdout.flush()
+        time.sleep(0.1)
+
+        if response is not None:
+            break  # Response is available, break out of the loop
+
+    if response is None:
+        print("Timeout condition: Request took too long to complete")
+
+    if response and response.status_code == 200:
+        sys.stdout.write('\b')  # Erase the spinning cursor
+        sys.stdout.flush()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+    else:
+        sys.stdout.write('\b')  # Erase the spinning cursor
+        sys.stdout.flush()
+        if response:
+            print(f"Request failed with status code {response.status_code}: {response.text}")
+        return f"Error talking to model {model}: {str(response)}"
 
 # Initialize the OpenAI client
 client = OpenAI()
@@ -227,8 +338,8 @@ client = OpenAI()
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
 filename, messages, original_messages = check_load_file()
 
-# If user did --model modelname, we'll use that model. Otherwise, we'll use gpt3.5.
-model = check_model()
+# If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
+model, family = check_model()
 
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
 assistant_name, user_name = check_names()
@@ -257,10 +368,10 @@ while True:
         print("  'quit'  - Quit the program")
 
     elif user_input.lower() == 'model':
-        model = input("Enter the model name (gpt3.5 or gpt4): ")
-        model = validate_model(model)
+        model = input(f"Enter the model name ({MODEL_LIST}): ")
+        model, family = validate_model(model)
         if not model:
-            print("Unsupported model. Please choose gpt3.5 or gpt4.")
+            print(f"Unsupported model. Please choose ({MODEL_LIST}).")
         else:
             print(f"Model changed to {model}.")
 
@@ -315,10 +426,13 @@ while True:
             continue
         start_time = time.time()  # Start timing
 
-        response = client.chat.completions.create(
-            model=model,
-            messages=api_messages
-        )
+        if family == "openai":
+            assistant_response = send_message_to_openai(client, model, api_messages)
+        elif family == "textgeneration-webui":
+            assistant_response = send_message_to_local_TGWI(client, model, api_messages)
+        else:
+            print(f"Unsupported model family: {family}")
+            exit(1)
 
         end_time = time.time()  # End timing
 
@@ -327,7 +441,6 @@ while True:
         response_time = end_time - start_time
         print(f"\033[1m\033[91mResponse time: {response_time:.2f} seconds\033[0m")
 
-        assistant_response = response.choices[0].message.content
         print(f"\n\033[1m\033[92m{assistant_name}:\033[0m")
         print(wrap_text(assistant_response))
         messages.append({"role": "assistant",

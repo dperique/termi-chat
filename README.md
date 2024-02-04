@@ -16,7 +16,10 @@ manipulated.
 
 ## Requirements
 
-* Openai [API Key](https://platform.openai.com/api-keys)
+* Openai [API Key](https://platform.openai.com/api-keys) (if you are using OpenAI models).
+* Have [text-generation-webui](https://github.com/oobabooga/text-generation-webui) API up
+  and running on port 5000 (if you are using local LLMs).  Characters have to be configured.
+  On my local setup, I have `Cassie` and `Assistant`.
 * Python and the openai package (via `pip install openai`)
 * Terminal where you can run termi-chat.py
 * Podman or Docker if you want to run in a container
@@ -30,6 +33,7 @@ manipulated.
   answers, just restart termi-chat using a different model or use the `model` command
   to switch models *mid-conversation*.  This is useful if you're interested in how the
   "other" model would respond.
+* Switch to local LLM on the fly.
 * Save and load your conversation so you can have a longer term conversation
   * Conversations are simple json so you can add/remove to/from more easily
   * Conversations are plain text which means you can archive and search them
@@ -205,7 +209,8 @@ podman run -it --rm \
     * think of things you would remember in human conversations and what most people tend to forget
   * add a mechanism so that if the user asks about something, maybe looking for "remember when...",
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
-* Add support for local LLM.
+* Add support for local LLM such that you can select the model by name instead of just whatever
+  is currently running.
 * Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
   text to a specific instance.  Then you can have two conversations.  You can then use two different models
   at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
