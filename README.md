@@ -26,15 +26,16 @@ manipulated.
 * Lightweight: all you need is a terminal.
 * Colored text for easy reading.
 * No streaming -- just give me the answers!
+* Switch OpenAI models on the fly.  If you want deeper answers or simpler/faster/cheaper
+  answers, just restart termi-chat using a different model or use the `model` command
+  to switch models *mid-conversation*.  This is useful if you're interested in how the
+  "other" model would respond.
 * Save and load your conversation so you can have a longer term conversation
   * Conversations are simple json so you can add/remove to/from more easily
   * Conversations are plain text which means you can archive and search them
     as easily as you can with your notes.  ChatGPT conversations become a part
     of your notes vs. asking over and over for the same thing.
   * Gives a good way to organize and manage your conversations.
-* Switch GPT models while retaining the conversation.  If you want deeper
-  answers or simpler/faster/cheaper answers, just restart termi-chat using a
-  different model.
 * Press `<ENTER>` to submit the text after seeing how many tokens (in case you are cost conscious).
 * Tracks response times in case you like to know how long it takes to respond.
 
@@ -204,3 +205,7 @@ podman run -it --rm \
   * add a mechanism so that if the user asks about something, maybe looking for "remember when...",
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
 * Add support for local LLM.
+* Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
+  text to a specific instance.  Then you can have two conversations.  You can then use two different models
+  at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
+  

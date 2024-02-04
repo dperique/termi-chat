@@ -41,7 +41,11 @@ def print_conversation(messages: List[Dict[str, str]]) -> None:
         dashes()
         timestamp = message.get("timestamp", "->")
         formatted_text = wrap_text(message['content'])
-        print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
+        model = message.get("model", "unknown model")
+        if message['role'] == "Assistant":
+            print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()({model})}{ANSI_RESET}:")
+        else:
+            print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
         print(formatted_text)
 
 def save_to_file(messages: List[Dict[str, str]], filename: str) -> None:
@@ -61,7 +65,7 @@ def get_timestamp() -> str:
 def get_multiline_input(prompt: str, user_name: str = "User") -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}{ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}{ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
     lines = []
     while True:
         try:
@@ -209,8 +213,16 @@ while True:
     user_input = get_multiline_input("\nEnter your command (type 'help' for options), or your conversation text:", user_name)
 
     if user_input.lower() == 'help':
-        print("Commands:\n  'view' - See conversation context\n  'clear' - Start over the conversation\n  'save' - Save conversation context\n  'load' - Load conversation context\n  'quit' - Quit the program\n  'help' - Show this help message\n  Enter anything else to continue the conversation.")
+        print("Commands:\n  'view' - See conversation context\n  'clear' - Start over the conversation\n  'save' - Save conversation context\n  'load' - Load conversation context\n  'model' - Choose a different model\n  'quit' - Quit the program\n  'help' - Show this help message\n  Enter anything else to continue the conversation.")
 
+    elif user_input.lower() == 'model':
+        model = input("Enter the model name (gpt3.5 or gpt4): ")
+        model = validate_model(model)
+        if not model:
+            print("Unsupported model. Please choose gpt3.5 or gpt4.")
+        else:
+            print(f"Model changed to {model}.")
+            
     elif user_input.lower() == 'view':
         print_conversation(messages)
 
@@ -273,4 +285,7 @@ while True:
         assistant_response = response.choices[0].message.content
         print(f"\n\033[1m\033[92m{assistant_name}:\033[0m")
         print(wrap_text(assistant_response))
-        messages.append({"role": "assistant", "content": assistant_response, "timestamp": get_timestamp()})
+        messages.append({"role": "assistant",
+                         "content": assistant_response,
+                         "timestamp": get_timestamp(),
+                         "model": model})
