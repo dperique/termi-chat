@@ -211,6 +211,8 @@ podman run -it --rm \
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
 * Add support for local LLM such that you can select the model by name instead of just whatever
   is currently running.
+* Ensure the system prompt stays in the message even if you set max_content to a small number.  We need the
+  system prompt to ensure the conversation stays on topic and character.
 * When running with local LLM within the container, we cannot see the correct url from within the container
   (because containers have their own localhost).
 * Make a way to access http://localhost:5000 from within the container
