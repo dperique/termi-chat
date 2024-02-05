@@ -11,7 +11,7 @@ termi_chats_dir="$1"
 conversations=(
 		"dennis_golang.json,Cassy,Dennis,gpt3.5"
 	   	"Talk_to_Jocko.json,Jocko,Dennis,gpt3.5"
-		"basic_dennis.json,Cassy,Dennis,gpt3.5"
+		"basic_dennis.json,Cassy,Dennis,Cassie"
 )
 
 show_menu() {
@@ -40,5 +40,6 @@ model=${chat_details[3]}
 podman run -it --rm \
     -v "${termi_chats_dir}:/termi-chats" \
     -e OPENAI_API_KEY=${OPENAI_API_KEY} \
+	--net=host \
     dperique/termi-chat:v0.1 --load /termi-chats/${conversation} --model ${model} --names ${names}
 
