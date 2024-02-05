@@ -37,7 +37,7 @@ conversation=${chat_details[0]}
 names=${chat_details[1]},${chat_details[2]}
 model=${chat_details[3]}
 
-podman run -it --rm \
+docker run -it --rm \
     -v "${termi_chats_dir}:/termi-chats" \
     -e OPENAI_API_KEY=${OPENAI_API_KEY} \
 	--net=host \
