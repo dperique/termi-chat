@@ -218,4 +218,5 @@ podman run -it --rm \
 * Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
   text to a specific instance.  Then you can have two conversations.  You can then use two different models
   at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
-
+* Make it so that you can repeat the same context; this is in case you change the model and just want to
+  repeat using a different model.
