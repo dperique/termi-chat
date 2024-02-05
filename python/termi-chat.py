@@ -79,8 +79,14 @@ def save_to_file(messages: List[Dict[str, str]], filename: str) -> None:
 
 def load_from_file(filename: str) -> List[Dict[str, str]]:
     """Load messages from a file."""
-    with open(filename, 'r') as file:
-        return json.load(file)
+    try:
+        with open(filename, 'r') as file:
+            return json.load(file)
+    except Exception as e:
+        # It's debatable if we want to exit here or let the user continue
+        # with an empty context.  For now, we'll exit.
+        print(f"An error occurred while loading messages from file {filename}: {e}")
+        exit(1)
 
 def get_timestamp() -> str:
     """Return the current timestamp."""
@@ -115,6 +121,7 @@ def prepare_messages_for_api(messages: List[Dict[str, str]], max_context: int) -
 def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]:
     """
     Load messages from a file.
+    Our caller already checked that the file exists.
 
     Args:
     - filename (str): The name of the file to load.
@@ -122,16 +129,13 @@ def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]
     Returns:
     - Tuple containing the filename, messages, and a string representation of the original messages.
     """
-    if os.path.exists(filename):
-        try:
-            messages = load_from_file(filename)
-            original_messages = json.dumps(messages)  # Update original state after loading
-            print(f"Context loaded from {filename}.")
-            return filename, messages, original_messages
-        except Exception as e:
-            print(f"Error loading file: {e}")
-    else:
-        print("File does not exist.")
+    try:
+        messages = load_from_file(filename)
+        original_messages = json.dumps(messages)  # Update original state after loading
+        print(f"Context loaded from {filename}.")
+        return filename, messages, original_messages
+    except Exception as e:
+        print(f"Error loading file: {e}")
 
 def check_max_context() -> int:
     """Check and return the max context specified in command line arguments.
