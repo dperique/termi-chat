@@ -60,8 +60,9 @@ def wrap_text(text: str, width: int = 80) -> str:
     return wrapped_text
 
 def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None:
-    """Print the formatted conversation."""
-    for message in messages[-max_context:]:
+    """Print the formatted conversation.
+       We will always keep message[0] which contains the system prompt."""
+    for message in [messages[0]] + messages[-max_context:]:
         dashes()
         timestamp = message.get("timestamp", "->")
         formatted_text = wrap_text(message['content'])
@@ -110,13 +111,13 @@ def get_multiline_input(model: str, max_context: int, user_name: str, prompt: st
     return '\n'.join(lines)
 
 def prepare_messages_for_api(messages: List[Dict[str, str]], max_context: int) -> List[Dict[str, str]]:
-     """Prepare messages for the API by extracting only what the api needs
-        and limit messages to the last n messages where n is max_context.
-        Remember a message is a role/context pair where role can be either
-        assistant or user"""
+    """Prepare messages for the API by extracting only what the api needs
+    and limit messages to the first message (the system prompot) plus the
+    last n messages where n is max_context.  Remember a message is a
+    role/context pair where role can be either assistant or user"""
 
-     # Limit messages to the last n=max_context messages
-     return [{"role": msg["role"], "content": msg["content"]} for msg in messages[-max_context:]]
+    # Limit messages to the first message plus the last n=max_context messages
+    return [{"role": msg["role"], "content": msg["content"]} for msg in [messages[0]] + messages[-max_context:]]
 
 def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]:
     """
