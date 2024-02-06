@@ -220,3 +220,12 @@ podman run -it --rm \
   at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
 * Make it so that you can repeat the same context; this is in case you change the model and just want to
   repeat using a different model.
+
+### coding
+
+* instead of globals for color, make functions for warning messages that use the color red.
+* make this a class so I can have multiple conversations in a REPL or jupyter notebook
+* add anthropic api support
+* fix the the TGWU so that we use an api call instead of requests/curl style so I can
+  specify the model
+* allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
