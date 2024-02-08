@@ -236,6 +236,17 @@ podman run -it --rm \
   specify the model
 * allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
 * allow me to set the temperature and maybe max tokens on the replies
+* implement "save as you go" ; workflow: have the json in vscode, run the chat, the editor is updated
+  with your chat updates.
+* implement "load as you go" ; workflow: have the json in vscode, run the chat, the editor is updated
+  with your chat updates, edit the json as you go; on the next submit, termi-chat reads the whole
+  json.  termi-chat should validate the json first and recover if it's bad so the user can
+  fix it without quitting.
+
+### doc updates
+
+* Mention this command `$ cat dennis_azure_lb_and_vm.json |jq -r '.[3].content'` for accessing specific
+  info from a chat.
 
 ## Getting ollama to work
 

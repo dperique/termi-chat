@@ -59,22 +59,33 @@ def wrap_text(text: str, width: int = 80) -> str:
             wrapped_text += textwrap.fill(line, width=width) + '\n'
     return wrapped_text
 
+def print_message(index: int, message: str) -> None:
+    """Print the messages."""
+    dashes()
+    timestamp = message.get("timestamp", "->")
+    formatted_text = wrap_text(message['content'])
+    model = message.get("model", "unknown model")
+    if message['role'] == "Assistant":
+        print(f"[{index}] {timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()({model})}{ANSI_RESET}:")
+    else:
+        print(f"[{index}] {timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
+    print(formatted_text)
+
 def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None:
     """Print the formatted conversation.
        We will always keep message[0] which contains the system prompt."""
-    if len(messages) == 0:
+    if len(messages) < 1:
         print("No conversation context to display.")
         return
-    for message in [messages[0]] + messages[-max_context:]:
-        dashes()
-        timestamp = message.get("timestamp", "->")
-        formatted_text = wrap_text(message['content'])
-        model = message.get("model", "unknown model")
-        if message['role'] == "Assistant":
-            print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()({model})}{ANSI_RESET}:")
-        else:
-            print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
-        print(formatted_text)
+    print(f"Length of messages: {len(messages)}")
+    print_message(0, messages[0])
+    print("here")
+    if max_context < len(messages):
+        rest_of_messages = messages[-max_context:]
+    else:
+        rest_of_messages = messages[1:]
+    for index, message in enumerate(rest_of_messages):
+        print_message(index + 1, message)
 
 def save_to_file(loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
     """Save messages to a file.
