@@ -235,7 +235,7 @@ podman run -it --rm \
 * fix the the TGWU so that we use an api call instead of requests/curl style so I can
   specify the model
 * allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
-
+* allow me to set the temperature and maybe max tokens on the replies
 
 ## Getting ollama to work
 
