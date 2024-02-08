@@ -221,6 +221,12 @@ podman run -it --rm \
 * Make it so that you can repeat the same context; this is in case you change the model and just want to
   repeat using a different model.
 
+### bugs
+
+* when I run `utilties/select.sh ~/Desktop/Dropbox/ShareOut/Redhat/termi-chats/`, I save
+  my chat but it's saved to the container current working dir.  We need it saved to the
+  directory because those containers and ephemeral and the chat is lost.
+
 ### coding
 
 * instead of globals for color, make functions for warning messages that use the color red.
@@ -229,3 +235,46 @@ podman run -it --rm \
 * fix the the TGWU so that we use an api call instead of requests/curl style so I can
   specify the model
 * allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
+
+
+## Getting ollama to work
+
+### example curl
+
+```bash
+$ curl http://localhost:11434/api/generate -d '{
+  "model": "llama2",
+  "prompt": "Why is the sky blue?",
+  "stream": false
+}'
+{"model":"llama2","created_at":"2024-02-06T21:57:46.258709647Z","response":"\nThe sky appears blue because of a phenomenon called Rayleigh scattering, which occurs when sunlight enters the Earth's atmosphere. The sunlight encounters tiny molecules of gases in the air, such as nitrogen and oxygen, which scatters the light in all directions.\n\nThe shorter wavelengths of light, such as blue and violet, a
+```
+
+chat with history:
+
+```bash
+curl http://localhost:11434/api/chat -d '{
+  "model": "llama2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "why is the sky blue?"
+    },
+    {
+      "role": "assistant",
+      "content": "due to rayleigh scattering."
+    },
+    {
+      "role": "user",
+      "content": "how is that different than mie scattering?"
+    }
+  ]
+}'
+```
+### requesting a new model
+
+```bash
+curl http://localhost:11434/api/generate -d '{
+  "model": "llama2"
+}'
+```

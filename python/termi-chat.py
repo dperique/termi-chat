@@ -62,6 +62,9 @@ def wrap_text(text: str, width: int = 80) -> str:
 def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None:
     """Print the formatted conversation.
        We will always keep message[0] which contains the system prompt."""
+    if len(messages) == 0:
+        print("No conversation context to display.")
+        return
     for message in [messages[0]] + messages[-max_context:]:
         dashes()
         timestamp = message.get("timestamp", "->")
@@ -73,8 +76,17 @@ def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None
             print(f"{timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
         print(formatted_text)
 
-def save_to_file(messages: List[Dict[str, str]], filename: str) -> None:
-    """Save messages to a file."""
+def save_to_file(loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
+    """Save messages to a file.
+       The loaded_filename is the filename passed in from the --load option; we will
+       use the directory from the as the place to save the file"""
+    if loaded_filename:
+        directory = os.path.dirname(loaded_filename)
+        filename = os.path.join(directory, filename)
+    else:
+        filename = os.path.join("/termi-chats", filename)
+
+    print(f"Saving conversation context to {filename}")
     with open(filename, 'w') as file:
         json.dump(messages, file, indent=2)
 
@@ -326,6 +338,8 @@ openaiClient = None
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
 filename, messages, original_messages = check_load_file()
 
+print(f"Loaded {len(messages)} messages from '{filename}'")
+
 # If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
 model, family = check_model()
 
@@ -379,7 +393,7 @@ while True:
         tmpOutputFilename = input("Enter filename to save the context (enter means current one): ")
         if tmpOutputFilename == "":
             tmpOutputFilename = filename
-        save_to_file(messages, tmpOutputFilename)
+        save_to_file(filename, messages, tmpOutputFilename)
         original_messages = json.dumps(messages)  # Update original state after saving
         print(f"Context saved to {tmpOutputFilename}.")
 

@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Run this like this:
+#
+# ./utilities/select.sh /path/to/termi-chats
+#
 if [ $# -eq 0 ]; then
     echo "Usage: $0 <termi-chats storage directory>"
     exit 1
@@ -11,10 +15,14 @@ termi_chats_dir="$1"
 conversations=(
 		"dennis_golang.json,Cassy,Dennis,gpt3.5"
 	   	"Talk_to_Jocko.json,Jocko,Dennis,gpt3.5"
-		"basic_dennis.json,Cassy,Dennis,Cassie"
+		"basic_dennis.json-local,Cassy,Dennis,Cassie"
+		"basic_dennis.json,Dennis,Mr-gpt3.5,gpt3.5"
 )
 
 show_menu() {
+    echo
+    echo "Using termi-chat version $(cat VERSION)"
+    echo
     echo "Select a conversation:"
     for i in "${!conversations[@]}"; do
         IFS=',' read -r -a chat <<< "${conversations[$i]}"
@@ -41,5 +49,5 @@ docker run -it --rm \
     -v "${termi_chats_dir}:/termi-chats" \
     -e OPENAI_API_KEY=${OPENAI_API_KEY} \
 	--net=host \
-    dperique/termi-chat:v0.1 --load /termi-chats/${conversation} --model ${model} --names ${names}
+    dperique/termi-chat:$(cat VERSION) --load /termi-chats/${conversation} --model ${model} --names ${names}
 
