@@ -343,7 +343,7 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
 menu_items = {
-    "clear - Start over the conversation": "clear",
+    "clear - Start over the conversation (retain the System prompt)": "clear",
     "load  - Load conversation context": "load",
     "max   - Set max back context": "max",
     "model - Choose a different model": "model",
@@ -408,7 +408,8 @@ while True:
         print_conversation(messages, max_context)
 
     elif user_input.lower() == 'clear':
-        messages = [{"role": "system", "content": "You are a helpful assistant.", "timestamp": get_timestamp()}]
+        # Just keep the system message and clear the rest.
+        messages = [{"role": "system", "content": messages[0]["content"], "timestamp": get_timestamp()}]
         timestamps = [get_timestamp()]
         print("Conversation context cleared. Starting over.")
 
