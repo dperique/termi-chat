@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
 from spinner import Spinner
+from simple_term_menu import TerminalMenu
 
 # Constants for ANSI color codes
 ANSI_RED = "\033[91m"
@@ -341,6 +342,24 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
             print(f"Request failed with status code {response.status_code}: {response.text}")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
+menu_items = {
+    "clear - Start over the conversation": "clear",
+    "load  - Load conversation context": "load",
+    "max   - Set max back context": "max",
+    "model - Choose a different model": "model",
+    "save  - Save conversation context": "save",
+    "view  - See conversation context": "view",
+    "quit  - Quit the program": "quit",
+    "exit  - Quit without saving": "exit"
+}
+
+model_menu_items = {
+    "GPT-3.5": "gpt3.5",
+    "GPT-4": "gpt4",
+    "Cassie (local)": "Cassie",
+    "Assistant (local)": "Assistant"
+}
+
 # We only need the OpenAI client if we are using an OpenAI model
 # This makes it so you don't need an API key if you are using a
 # local model.
@@ -367,26 +386,19 @@ timestamps = [get_timestamp()]
 while True:
     user_input = get_multiline_input(model, max_context, user_name, "\nEnter your command (type 'help' for options), or your conversation text:")
 
-    if user_input.lower() == 'help':
-        print("Commands:")
-        print("Enter anything else to continue the conversation.")
-        print("  'clear' - Start over the conversation")
-        print("  'load'  - Load conversation context")
-        print("  'max'   - Set max back context")
-        print("  'model' - Choose a different model")
-        print("  'save'  - Save conversation context")
-        print("  'view'  - See conversation context")
-        print()
-        print("  'help'  - Show this help message")
-        print("  'quit'  - Quit the program")
+    if user_input.lower() == 'm' or user_input.lower() == 'menu' or user_input.lower() == '':
+        options = list(menu_items.keys())
+        terminal_menu = TerminalMenu(options)
+        selected_option = terminal_menu.show()
+        user_input = menu_items[options[selected_option]]
 
-    elif user_input.lower() == 'model':
-        model = input(f"Enter the model name ({MODEL_LIST}): ")
+    if user_input.lower() == 'model':
+        options = list(model_menu_items.keys())
+        terminal_menu = TerminalMenu(options)
+        selected_option = terminal_menu.show()
+        model = model_menu_items[options[selected_option]]
         model, family = validate_model(model)
-        if not model:
-            print(f"Unsupported model. Please choose ({MODEL_LIST}).")
-        else:
-            print(f"Model changed to {model}.")
+        print(f"Model changed to {model}.")
 
     elif user_input.lower() == 'max':
         max_context = int(input("Enter the max context to use: "))
@@ -419,8 +431,12 @@ while True:
         if original_messages != json.dumps(messages):
             print("You have unsaved changes. Please save your context before quitting.")
         else:
-            print("Goodbye!")
+            print("Quitting.\n")
             break
+
+    elif user_input.lower() == 'exit':
+        print("Exiting without saving!\n")
+        break
     else:
         messages.append({"role": "user", "content": user_input, "timestamp": get_timestamp()})
         api_messages = prepare_messages_for_api(messages, max_context)
