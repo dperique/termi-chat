@@ -326,9 +326,24 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
     # OpenAI has to status code -- so if we get a response, we assume 200 OK.
     # See https://community.openai.com/t/http-status-for-chat-completion/541491
     if response:
+        cost_per_input_1k_tokens = 0.01
+        cost_per_output_1k_tokens = 0.03
+        if "gpt-3.5" in model:
+            cost_per_input_1k_tokens = 0.0005
+            cost_per_input_1k_tokens = 0.0015
+        elif "gpt-4" in model:
+            cost_per_input_1k_tokens = 0.01
+            cost_per_output_1k_tokens = 0.03
+        else:
+            print("\nUnknown model, using gpt cost values")
+
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        total_tokens = input_tokens + output_tokens
+        print(f"\nCost: ${cost_per_input_1k_tokens * input_tokens / 1000:.4f} for input, ${cost_per_output_1k_tokens * output_tokens / 1000:.4f} for output, total: ${cost_per_input_1k_tokens * total_tokens / 1000:.4f}")
         return response.choices[0].message.content
     else:
-        print(f"Request failed with unknown status code")
+        print(f"\nRequest failed with unknown status code")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
 def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
