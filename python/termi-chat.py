@@ -14,6 +14,9 @@ from spinner import Spinner
 from simple_term_menu import TerminalMenu
 from tiktoken import encoding_for_model
 
+# Used for counting tokens
+TOKEN_ENCODING = encoding_for_model("text-davinci-003")
+
 # Constants for ANSI color codes
 ANSI_RED = "\033[91m"
 ANSI_GREEN = "\033[92m"
@@ -81,7 +84,6 @@ def print_conversation(messages: List[Dict[str, str]], max_context: int) -> None
         return
     print(f"Length of messages: {len(messages)}")
     print_message(0, messages[0])
-    print("here")
     if max_context < len(messages):
         rest_of_messages = messages[-max_context:]
     else:
@@ -121,7 +123,7 @@ def get_timestamp() -> str:
 def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter your text, finish with Ctrl-D on a blank line (no input = menu)\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter some (multi-line) text, finish with Ctrl-D on a blank line (Ctrl-D for menu)\n")
     lines = []
     while True:
         try:
@@ -368,7 +370,7 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
 def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
-    tokens = sum(len(token_encoding.encode(messages['content'])) for messages in api_messages)
+    tokens = sum(len(TOKEN_ENCODING.encode(messages['content'])) for messages in api_messages)
     return tokens
 
 menu_items = {
@@ -389,8 +391,6 @@ model_menu_items = {
     "Cassie (local)": "Cassie",
     "Assistant (local)": "Assistant"
 }
-
-token_encoding = encoding_for_model("text-davinci-003")
 
 # We only need the OpenAI client if we are using an OpenAI model
 # This makes it so you don't need an API key if you are using a
@@ -515,8 +515,14 @@ while True:
         print(f"Estimated tokens to be sent: {estimated_tokens}")
 
         # Ask user to press <ENTER> to confirm they want to send the message
-        print(f"Press <ENTER> to send the message to the '{model}' assistant, or type 'cancel' to cancel.")
-        confirm = input()
+        options = [ f"Send to '{model}' assistant", "Cancel" ]
+        terminal_menu = TerminalMenu(options)
+        selected_option = terminal_menu.show()
+        if selected_option is None:
+            # Escape was pressed so do nothing.
+            confirm = 'cancel'
+        else:
+            confirm = options[selected_option]
         if confirm.lower() == 'cancel':
             print("\033[91mMessage canceled.\033[0m")
             messages.pop()
