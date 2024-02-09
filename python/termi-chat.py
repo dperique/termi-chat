@@ -389,22 +389,22 @@ def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
     return tokens
 
 menu_items = {
-    "clear - Start over the conversation (retain the System prompt)": "clear",
-    "load  - Load conversation context": "load",
-    "max   - Set max back context": "max",
-    "model - Choose a different model": "model",
-    "names - Choose different names for the assistant and user": "names",
-    "save  - Save conversation context": "save",
-    "view  - See conversation context": "view",
-    "quit  - Quit the program": "quit",
-    "exit  - Quit without saving": "exit"
+    "[c] clear - Start over the conversation (retain the System prompt)": "clear",
+    "[l] load  - Load conversation context": "load",
+    "[m] max   - Set max back context": "max",
+    "[o] model - Choose a different model": "model",
+    "[n] names - Choose different names for the assistant and user": "names",
+    "[s] save  - Save conversation context": "save",
+    "[v] view  - See conversation context": "view",
+    "[q] quit  - Quit the program": "quit",
+    "[e] exit  - Quit without saving": "exit"
 }
 
 model_menu_items = {
-    "GPT-3.5": "gpt3.5",
-    "GPT-4": "gpt4",
-    "Cassie (local)": "Cassie",
-    "Assistant (local)": "Assistant"
+    "[3] GPT-3.5": "gpt3.5",
+    "[4] GPT-4": "gpt4",
+    "[c] Cassie (local)": "Cassie",
+    "[a] Assistant (local)": "Assistant"
 }
 
 # We only need the OpenAI client if we are using an OpenAI model
