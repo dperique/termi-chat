@@ -371,6 +371,7 @@ menu_items = {
     "load  - Load conversation context": "load",
     "max   - Set max back context": "max",
     "model - Choose a different model": "model",
+    "names - Choose different names for the assistant and user": "names",
     "save  - Save conversation context": "save",
     "view  - See conversation context": "view",
     "quit  - Quit the program": "quit",
@@ -428,6 +429,21 @@ while True:
         model = model_menu_items[options[selected_option]]
         model, family = validate_model(model)
         print(f"Model changed to {model}.")
+
+    elif user_input.lower() == 'names':
+        tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
+        if len(tmp_input) > 0:
+            assistant_name = tmp_input
+            print(f"Assistant name changed to {assistant_name}.")
+        else:
+            print(f"Assistant name not changed.")
+        tmp_input = input(f"Enter the user name (blank = no change, default = {user_name}): ")
+        if len(tmp_input) > 0:
+            user_name = tmp_input
+            print(f"User name changed to {user_name}.")
+        else:
+            print(f"User name not changed.")
+        continue
 
     elif user_input.lower() == 'max':
         # We'll need to increase context number as we progress int the conversation
