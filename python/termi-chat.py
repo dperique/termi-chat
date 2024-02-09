@@ -366,6 +366,11 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
             print(f"Request failed with status code {response.status_code}: {response.text}")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
+def estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
+    total_chars = sum(len(msg['content']) for msg in api_messages)
+    estimated_tokens = total_chars // 4  # Rough estimation
+    return estimated_tokens
+
 menu_items = {
     "clear - Start over the conversation (retain the System prompt)": "clear",
     "load  - Load conversation context": "load",
@@ -504,8 +509,7 @@ while True:
         api_messages = prepare_messages_for_api(messages, max_context)
 
         # Calculate tokens
-        total_chars = sum(len(msg['content']) for msg in api_messages)
-        estimated_tokens = total_chars // 4  # Rough estimation
+        estimated_tokens = estimated_tokens(api_messages)
         print(f"Estimated tokens to be sent: {estimated_tokens}")
 
         # Ask user to press <ENTER> to confirm they want to send the message
