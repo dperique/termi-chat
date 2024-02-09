@@ -12,6 +12,7 @@ from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
 from spinner import Spinner
 from simple_term_menu import TerminalMenu
+from tiktoken import encoding_for_model
 
 # Constants for ANSI color codes
 ANSI_RED = "\033[91m"
@@ -366,10 +367,9 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
             print(f"Request failed with status code {response.status_code}: {response.text}")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
-def estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
-    total_chars = sum(len(msg['content']) for msg in api_messages)
-    estimated_tokens = total_chars // 4  # Rough estimation
-    return estimated_tokens
+def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
+    tokens = sum(len(token_encoding.encode(messages['content'])) for messages in api_messages)
+    return tokens
 
 menu_items = {
     "clear - Start over the conversation (retain the System prompt)": "clear",
@@ -389,6 +389,8 @@ model_menu_items = {
     "Cassie (local)": "Cassie",
     "Assistant (local)": "Assistant"
 }
+
+token_encoding = encoding_for_model("text-davinci-003")
 
 # We only need the OpenAI client if we are using an OpenAI model
 # This makes it so you don't need an API key if you are using a
@@ -509,7 +511,7 @@ while True:
         api_messages = prepare_messages_for_api(messages, max_context)
 
         # Calculate tokens
-        estimated_tokens = estimated_tokens(api_messages)
+        estimated_tokens = get_estimated_tokens(api_messages)
         print(f"Estimated tokens to be sent: {estimated_tokens}")
 
         # Ask user to press <ENTER> to confirm they want to send the message
