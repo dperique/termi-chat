@@ -120,7 +120,7 @@ def get_timestamp() -> str:
 def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter your text, then finish with Ctrl-D on a blank line.\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter your text, finish with Ctrl-D on a blank line (no input = menu)\n")
     lines = []
     while True:
         try:
@@ -157,7 +157,9 @@ def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]
     try:
         messages = load_from_file(filename)
         original_messages = json.dumps(messages)  # Update original state after loading
+        num_messages = len(messages)
         print(f"Context loaded from {filename}.")
+        print(f"Loaded {num_messages} {'message' if num_messages == 1 else 'messages'}")
         return filename, messages, original_messages
     except Exception as e:
         print(f"Error loading file: {e}")
@@ -195,6 +197,28 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
         load_file_index = sys.argv.index("--load") + 1
         if load_file_index < len(sys.argv):
             filename = sys.argv[load_file_index]
+
+            # if filename is a directory, glob the directory for *.json files, sort,
+            # and present a menu to the user to choose a file to load.
+            if os.path.isdir(filename):
+                files = glob.glob(os.path.join(filename, "*.json"))
+                files = sorted([os.path.basename(file) for file in files], key=str.lower)
+                if len(files) == 0:
+                    print(f"No JSON files found in {filename}")
+                    exit(1)
+                else:
+                    # Given the menu so user can choose a file to load.
+                    options = files
+                    terminal_menu = TerminalMenu(options)
+                    selected_option = terminal_menu.show()
+                    print(f"Selected option: {selected_option}")
+                    if selected_option is None:
+                        print("No file selected. Exiting.")
+                        exit(0)
+                    else:
+                        filename = os.path.join(filename, files[selected_option])
+            else:
+                filename = files[0]
             if os.path.exists(filename):
                 try:
                     return load_file(filename)
@@ -368,8 +392,6 @@ openaiClient = None
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
 filename, messages, original_messages = check_load_file()
 
-print(f"Loaded {len(messages)} messages from '{filename}'")
-
 # If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
 model, family = check_model()
 
@@ -390,19 +412,43 @@ while True:
         options = list(menu_items.keys())
         terminal_menu = TerminalMenu(options)
         selected_option = terminal_menu.show()
+        if selected_option is None:
+            # Escape was pressed so do nothing.
+            continue
         user_input = menu_items[options[selected_option]]
 
     if user_input.lower() == 'model':
         options = list(model_menu_items.keys())
         terminal_menu = TerminalMenu(options)
         selected_option = terminal_menu.show()
+        if selected_option is None:
+            # Escape was pressed so do nothing.
+            print("Model not changed.")
+            continue
         model = model_menu_items[options[selected_option]]
         model, family = validate_model(model)
         print(f"Model changed to {model}.")
 
     elif user_input.lower() == 'max':
-        max_context = int(input("Enter the max context to use: "))
-        print(f"Max context changed to {max_context}.")
+        # We'll need to increase context number as we progress int the conversation
+        # and then the max will be shown.  For now, just try to do some rudimentary
+        # checking to make sure the number is valid.
+        if len(messages) < 2:
+            print("No conversation context so max context cannot be changed.")
+            continue
+        tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(messages)-1}): ")
+        if len(tmp_input) > 0:
+            try:
+                max_context = int(tmp_input)
+                if max_context >= len(messages):
+                    print(f"Invalid max context. Please enter a value less than {len(messages)}")
+                    continue
+            except ValueError:
+                print("Invalid max context. Please enter a valid integer.")
+                continue
+            print(f"Max context changed to {max_context}.")
+        else:
+            print(f"Max context not changed.")
 
     elif user_input.lower() == 'view':
         print_conversation(messages, max_context)
@@ -425,8 +471,7 @@ while True:
         filename = tmpOutputFilename
 
     elif user_input.lower() == 'load':
-        tmpInputFilename = input("Enter filename to load the context: ")
-        filename, messages, original_messages = load_file(tmpInputFilename)
+        filename, messages, original_messages = check_load_file()
 
     elif user_input.lower() == 'quit':
         if original_messages != json.dumps(messages):
