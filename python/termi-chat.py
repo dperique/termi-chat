@@ -25,30 +25,59 @@ ANSI_YELLOW = "\033[93m"
 ANSI_BOLD = "\033[1m"
 ANSI_RESET = "\033[0m"
 
-# When you add a new model, add it to the SUPPORTED_MODELS dictionary
-# and add a model family to the MODEL_FAMILIES dictionary.
-SUPPORTED_MODELS = {
-    # 16K context, optimized for dialog
-    # $0.0005/1K tokens-in, $0.0015/1K tokens-out
-    "gpt3.5": "gpt-3.5-turbo-0125",
-    "gpt4": "gpt-4-0613",
-
-    # 4K context using whatever is running on the text-generation-webui
-    "Cassie": "Cassie",
-    "Assistant": "Assistant"
+# When you add a new model, add it to the MODEL_INFO dictionary.
+# The first model is the default.
+MODEL_INFO = {
+    "gpt3.5": {
+        # 16K context, optimized for dialog
+        "model_api_name": "gpt-3.5-turbo-0125",
+        "model_family": "openai",
+        "cost_input": 0.0005,
+        "cost_output": 0.0015
+    },
+    "gpt4": {
+        "model_api_name": "gpt-4-0613",
+        "model_family": "openai",
+        "cost_input": 0.01,
+        "cost_output": 0.03
+    },
+    "Cassie": {
+        # 4K context using whatever is running on the text-generation-webui
+        "model_api_name": "Cassie",
+        "model_family": "text-generation-webui",
+        "cost_input": 0.01,
+        "cost_output": 0.03
+    },
+    "Assistant": {
+        # 4K context using whatever is running on the text-generation-webui
+        "model_api_name": "Assistant",
+        "model_family": "text-generation-webui",
+        "cost_input": 0.0,
+        "cost_output": 0.0
+    }
 }
-MODEL_FAMILIES = {
-    "gpt3.5": "openai",
-    "gpt4": "openai",
-    "Cassie": "textgeneration-webui",
-    "Assistant": "textgeneration-webui"
-}
 
-MODEL_LIST = ", ".join(SUPPORTED_MODELS.keys())
-DEFAULT_MODEL = "gpt3.5"
+MODEL_LIST = ", ".join(MODEL_INFO.keys())
+
+# The first one is the default.
+DEFAULT_MODEL = MODEL_LIST[0]
 
 # The total accumulated cost for the conversation(s)
 _total_cost = 0
+
+def _get_model_cost_values(model_api_name: str) -> Tuple[float, float]:
+    """Get the cost values for any model_api_name as a pair of cost/1k tokens for input and output.
+       If the model is not supported, we will use high cost estimates."""
+
+    # Search for the model short name with the matching model_api_name.
+    for model, info in MODEL_INFO.items():
+        if info["model_api_name"] == model_api_name:
+            break
+    else:
+        print(f"Unsupported model: {model}; using high cost estimates")
+        return 0.99, 0.99
+
+    return MODEL_INFO[model]["cost_input"], MODEL_INFO[model]["cost_output"]
 
 def dashes() -> None:
     """Print 80 dashes for separation."""
@@ -124,18 +153,18 @@ def get_timestamp() -> str:
     """Return the current timestamp."""
     return datetime.now().strftime("%Y-%m-%d-%H:%M")
 
-def get_spent() -> str:
+def get_spent(amount: float) -> str:
     """Return a string that shows the amount spent so far.
        If the amount is zero, it is green, otherwise it is red."""
-    if _total_cost == 0:
-        return f"{ANSI_GREEN}${_total_cost:.5f}{ANSI_RESET}"
+    if amount == 0.0:
+        return f"{ANSI_GREEN}${amount:.5f}{ANSI_RESET}"
     else:
-        return f"{ANSI_RED}${_total_cost:.5f}{ANSI_RESET}"
+        return f"{ANSI_RED}${amount:.5f}{ANSI_RESET}"
 
 def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context},spent={ANSI_RESET}{get_spent()}{ANSI_BOLD}{ANSI_GREEN}){ANSI_RESET}, enter some (multi-line) text, finish with Ctrl-D on a blank line (Ctrl-D for menu)\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context},spent={ANSI_RESET}{get_spent(_total_cost)}{ANSI_BOLD}{ANSI_GREEN}){ANSI_RESET}, enter some (multi-line) text, finish with Ctrl-D on a blank line (Ctrl-D for menu)\n")
     lines = []
     while True:
         try:
@@ -228,7 +257,6 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
                     options = files
                     terminal_menu = TerminalMenu(options)
                     selected_option = terminal_menu.show()
-                    print(f"Selected option: {selected_option}")
                     if selected_option is None:
                         print("No file selected. Exiting.")
                         exit(0)
@@ -243,32 +271,37 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
                 print("File does not exist.")
     return "", [], None
 
-def validate_model(model: str) -> Tuple[str, str]:
-    """Validate if the provided model is supported.
+def validate_model(model: str) -> Tuple[str, str, str]:
+    """Validate if the provided model is supported, if invalid, we will return None values.
 
     Args:
-    - model (str): The model name to validate.
+    - model (str): The "short" version of the model to validate; see the keys of MODEL_INFO.
 
     Returns:
-    - Optional[str]: The internal model name if supported, None otherwise; the model family if supported, None otherwise.
-    - Optional[str]: The model family if supported, None otherwise.
+    - The model's "short" name.
+    - The model's api name if supported, None otherwise.
+    - The model family if supported, None otherwise.
     """
-    return SUPPORTED_MODELS.get(model), MODEL_FAMILIES.get(model)
+    return model, MODEL_INFO.get(model)["model_api_name"], MODEL_INFO.get(model)["model_family"]
 
-def check_model() -> Tuple[str, str]:
+def check_model() -> Tuple[str, str, str]:
     """Check and return the model specified in command line arguments.
-       For unsupported models, exit the program.
+       For unsupported models, exit the program; with the given menuing system,
+       which only provides valid options, this should not happen.
 
     Returns:
-    - str: The validated model name and family.
+    - str: The model "short" name as passed in the cli
+    - str: The model's validated model api name
+    - str: The model's family
     """
     if "--model" in sys.argv:
         model_index = sys.argv.index("--model") + 1
+        model = sys.argv[model_index]
         if model_index < len(sys.argv):
-            model, family = validate_model(sys.argv[model_index])
-            if model:
-                return model, family
-            print(f"Unsupported model: {sys.argv[model_index]}")
+            unused, model_api_name, family = validate_model(model)
+            if model_api_name:
+                return model, model_api_name, family
+            print(f"Unsupported model: {model}")
             exit(1)
     return validate_model(DEFAULT_MODEL)
 
@@ -309,22 +342,10 @@ if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
 
-def _get_model_cost_values(model: str) -> Tuple[float, float]:
-    """Get the cost values for any model as a pair of cost/1k tokens for input and output."""
-    if "gpt-3.5" in model:
-        return 0.0005, 0.0015
-    elif "gpt-4" in model:
-        return 0.01, 0.03
-    elif "Cassie" in model:
-        return 0.01, 0.03
-    elif "Assistant" in model:
-        return 0.0, 0.0
-    else:
-        return 0.01, 0.03
-
-def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+def send_message_to_openai(client: OpenAI, model_api_name: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
     """Send a message to the OpenAI API and return the response.
-        Returns a response from the model once complete (or error (e.g., timeout))"""
+        Returns a response from the model once complete (or error (e.g., timeout))
+        and the cost of the request."""
 
     spinner = Spinner()
 
@@ -332,7 +353,7 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
         nonlocal spinner
         try:
             spinner.set_response(client.chat.completions.create(
-                model=model,
+                model=model_api_name,
                 messages=api_messages
             ))
         except Exception as e:
@@ -351,30 +372,33 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
     # OpenAI has to status code -- so if we get a response, we assume 200 OK.
     # See https://community.openai.com/t/http-status-for-chat-completion/541491
     if response:
-        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model)
+        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model_api_name)
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
         total_tokens = input_tokens + output_tokens
         cost_for_input = cost_per_input_1k_tokens * input_tokens / 1000
         cost_for_output = cost_per_output_1k_tokens * output_tokens / 1000
         total_for_both = cost_for_input + cost_for_output
-        total_cost += total_for_both
+
+        global _total_cost
+        _total_cost += total_for_both
         print(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
         return response.choices[0].message.content, total_for_both
     else:
         print(f"\nRequest failed with unknown status code")
-        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
+        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
-def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+def send_message_to_local_TGWI(client: OpenAI, model_api_name: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
     """Send a message to the text-generation-webui in the background and return immediately.
-        Returns a response from the model once complete (or error (e.g., timeout))"""
+        Returns a response from the model once complete (or error (e.g., timeout))
+        and the cost of the request."""
     url = "http://192.168.1.52:5089/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
 
     data = {
         "messages": api_messages,
         "mode": "chat",
-        "character": model,
+        "character": model_api_name,
     }
     spinner = Spinner()
 
@@ -398,7 +422,7 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
         result = response.json()
 
 
-        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model)
+        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model_api_name)
         input_tokens = get_estimated_tokens(api_messages)
         output_tokens = get_estimated_tokens_for_message(result["choices"][0]["message"]["content"])
         total_tokens = input_tokens + output_tokens
@@ -414,7 +438,7 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
         sys.stdout.flush()
         if response:
             print(f"Request failed with status code {response.status_code}: {response.text}")
-        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
+        return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
 def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
     tokens = sum(len(TOKEN_ENCODING.encode(messages['content'])) for messages in api_messages)
@@ -436,6 +460,7 @@ menu_items = {
     "[e] exit    - Quit without saving": "exit"
 }
 
+# The second one is the model "short" name which should match the keys in MODEL_INFO.
 model_menu_items = {
     "[3] GPT-3.5": "gpt3.5",
     "[4] GPT-4": "gpt4",
@@ -452,7 +477,7 @@ openaiClient = None
 filename, messages, original_messages = check_load_file()
 
 # If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
-model, family = check_model()
+model, model_api_name, family = check_model()
 
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
 assistant_name, user_name = check_names()
@@ -485,9 +510,9 @@ while True:
             print("Model not changed.")
             continue
         model = model_menu_items[options[selected_option]]
-        model, family = validate_model(model)
+        unused, model_api_name, family = validate_model(model)
         print(f"Model changed to {model}.")
-        tmp_input_cost, tmp_output_cost = _get_model_cost_values(model)
+        tmp_input_cost, tmp_output_cost = _get_model_cost_values(model_api_name)
         if tmp_input_cost > 0.0 or tmp_output_cost > 0.0:
             print(f"{ANSI_RED}{ANSI_BOLD}Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens{ANSI_RESET}")
 
@@ -599,9 +624,9 @@ while True:
             if openaiClient is None:
                 # Initialize the OpenAI client
                 openaiClient = OpenAI()
-            assistant_response, tmp_cost = send_message_to_openai(openaiClient, model, api_messages)
-        elif family == "textgeneration-webui":
-            assistant_response, tmp_cost = send_message_to_local_TGWI(openaiClient, model, api_messages)
+            assistant_response, tmp_cost = send_message_to_openai(openaiClient, model_api_name, api_messages)
+        elif family == "text-generation-webui":
+            assistant_response, tmp_cost = send_message_to_local_TGWI(openaiClient, model_api_name, api_messages)
         else:
             print(f"Unsupported model family: {family}")
             exit(1)
