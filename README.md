@@ -20,7 +20,7 @@ manipulated.
 * Have [text-generation-webui](https://github.com/oobabooga/text-generation-webui) API up
   and running on port 5000 (if you are using local LLMs).  Characters have to be configured.
   On my local setup, I have `Cassie` and `Assistant`.
-* Python and the openai package (via `pip install openai`)
+* See the [python requirements.txt](./requirements.txt)
 * Terminal where you can run termi-chat.py
 * Podman or Docker if you want to run in a container
 
@@ -29,20 +29,21 @@ manipulated.
 * Lightweight: all you need is a terminal.
 * Colored text for easy reading.
 * No streaming -- just give me the answers!
-* Switch OpenAI models on the fly.  If you want deeper answers or simpler/faster/cheaper
+* Switch models on the fly.  If you want deeper answers or simpler/faster/cheaper/free
   answers, just restart termi-chat using a different model or use the `model` command
   to switch models *mid-conversation*.  This is useful if you're interested in how the
   "other" model would respond.
-* Switch to local LLM on the fly.
+  * Use the "resend" command to just resend your current conversation (this allows you
+    to try what you just asked to a different model).
+* Costs are tracked and shown in real-time so you know much you've spent.
 * Save and load your conversation so you can have a longer term conversation
   * Conversations are simple json so you can add/remove to/from more easily
   * Conversations are plain text which means you can archive and search them
     as easily as you can with your notes.  ChatGPT conversations become a part
     of your notes vs. asking over and over for the same thing.
   * Gives a good way to organize and manage your conversations.
-* Press `<ENTER>` to submit the text after seeing how many tokens (in case you are cost conscious).
-  * use the `max` command to use only the last `n` messages for the context (reduces token count).
-* Tracks response times in case you like to know how long it takes to respond.
+* use the `max` command to use only the last `n` messages for the context (reduces token count).
+* Tracks model used, response times, and cost of api calls in the saved json.
 
 
 ## Limitations

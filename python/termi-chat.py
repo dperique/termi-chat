@@ -157,9 +157,9 @@ def get_spent(amount: float) -> str:
     """Return a string that shows the amount spent so far.
        If the amount is zero, it is green, otherwise it is red."""
     if amount == 0.0:
-        return f"{ANSI_GREEN}${amount:.5f}{ANSI_RESET}"
+        return f"{ANSI_GREEN}${amount:.4f}{ANSI_RESET}"
     else:
-        return f"{ANSI_RED}${amount:.5f}{ANSI_RESET}"
+        return f"{ANSI_RED}${amount:.4f}{ANSI_RESET}"
 
 def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
@@ -187,7 +187,7 @@ def prepare_messages_for_api(messages: List[Dict[str, str]], max_context: int) -
     # Limit messages to the first message plus the last n=max_context messages
     return [{"role": msg["role"], "content": msg["content"]} for msg in [messages[0]] + messages[-max_context:]]
 
-def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]:
+def load_json_file(filename: str) -> Tuple[str, List[Dict[str, str]], str]:
     """
     Load messages from a file.
     Our caller already checked that the file exists.
@@ -196,11 +196,15 @@ def load_file(filename: str) -> Tuple[str, List[Dict[str, str]], Optional[str] ]
     - filename (str): The name of the file to load.
 
     Returns:
-    - Tuple containing the filename, messages, and a string representation of the original messages.
+    - Tuple containing
+    - str: the filename
+    - List of Dict[str,str]: messages
+    - str: flat string representatino of messages (used to track changes to the original
+      messages read from the file)
     """
     try:
         messages = load_from_file(filename)
-        original_messages = json.dumps(messages)  # Update original state after loading
+        original_messages = json.dumps(messages)
         num_messages = len(messages)
         print(f"Context loaded from {filename}.")
         print(f"Loaded {num_messages} {'message' if num_messages == 1 else 'messages'}")
@@ -230,45 +234,56 @@ def check_max_context() -> int:
     # Default max context
     return 100
 
-def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
-    """
-    Check if a file should be loaded based on command line arguments.
-    If the user passes a directory to --load, we'll glob the directory and make a menu.
-    If the user passes a file to --load, we'll load the file.
+def get_file_or_dir_from_cli() -> str:
+    """Check and return the file or directory specified in command line arguments.
 
     Returns:
-    - Tuple containing the filename, messages, and a string representation of the original messages.
+    - str: The file or directory specified by the --load option; if nothing specified, default
+      to the current working directory.
     """
     if "--load" in sys.argv:
         load_file_index = sys.argv.index("--load") + 1
         if load_file_index < len(sys.argv):
-            filename = sys.argv[load_file_index]
+            return sys.argv[load_file_index]
+    return os.getcwd()
 
-            # if filename is a directory, glob the directory for *.json files, sort,
-            # and present a menu to the user to choose a file to load.
-            if os.path.isdir(filename):
-                files = glob.glob(os.path.join(filename, "*.json"))
-                files = sorted([os.path.basename(file) for file in files], key=str.lower)
-                if len(files) == 0:
-                    print(f"No JSON files found in {filename}")
-                    exit(1)
-                else:
-                    # Given the menu so user can choose a file to load.
-                    options = files
-                    terminal_menu = TerminalMenu(options)
-                    selected_option = terminal_menu.show()
-                    if selected_option is None:
-                        print("No file selected. Exiting.")
-                        exit(0)
-                    else:
-                        filename = os.path.join(filename, files[selected_option])
-            if os.path.exists(filename):
-                try:
-                    return load_file(filename)
-                except Exception as e:
-                    print(f"Error loading file: {e}")
+def check_load_file(filename: str) -> Tuple[str, List[Dict[str, str]], str]:
+    """
+    Given a filename, determine if it's a directory or a file and load the file.
+    If it's a directory, we'll glob the directory and make a menu.
+
+    Returns:
+    - Tuple containing
+      - str: the filename
+      - List of Dict[str,str]: messages
+      - str: flat string representatino of messages (used to track changes to the original
+        messages read from the file)
+    """
+    # if filename is a directory, glob the directory for *.json files, sort,
+    # and present a menu to the user to choose a file to load.
+    if os.path.isdir(filename):
+        files = glob.glob(os.path.join(filename, "*.json"))
+        files = sorted([os.path.basename(file) for file in files], key=str.lower)
+        if len(files) == 0:
+            print(f"No JSON files found in {filename}; use --load <aDir> or --load <aJsonFile> to specify a file or directory.")
+            exit(1)
+        else:
+            # Give the menu so user can choose a file to load.
+            options = files
+            terminal_menu = TerminalMenu(options)
+            selected_option = terminal_menu.show()
+            if selected_option is None:
+                print("No file selected. Exiting.")
+                exit(0)
             else:
-                print("File does not exist.")
+                filename = os.path.join(filename, files[selected_option])
+    if os.path.exists(filename):
+        try:
+            return load_json_file(filename)
+        except Exception as e:
+            print(f"Error loading file: {e}")
+    else:
+        print("File does not exist.")
     return "", [], None
 
 def inform_model_cost(model: str) -> None:
@@ -312,12 +327,16 @@ def get_model_from_cli() -> str:
             exit(1)
     return DEFAULT_MODEL
 
-def check_names() -> Tuple[str, str]:
-    """Check and return the names specified in command line arguments.
+def check_cli_names(model: str) -> Tuple[str, str]:
+    """Given the model "short" name, check and return the names specified in
+       command line (--names) arguments.
 
     Returns:
     - Tuple[str, str]: Names for the assistant and user.
     """
+    # Match the ChatGPT UI for names regardless of what the user specified for --names
+    if model == "gpt3.5" or model == "gpt4":
+        return "ChatGPT", "You"
     if "--names" in sys.argv:
         name_index = sys.argv.index("--names") + 1
         if name_index < len(sys.argv):
@@ -395,7 +414,7 @@ def send_message_to_openai(client: OpenAI, model_api_name: str, api_messages: Li
         print(f"\nRequest failed with unknown status code")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
-def send_message_to_local_TGWI(client: OpenAI, model_api_name: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+def send_message_to_local_TGW(client: OpenAI, model_api_name: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
     """Send a message to the text-generation-webui in the background and return immediately.
         Returns a response from the model once complete (or error (e.g., timeout))
         and the cost of the request."""
@@ -481,7 +500,10 @@ model_menu_items = {
 openaiClient = None
 
 # If user did --load filename, we'll load the file. Otherwise, we'll ask them to choose a system prompt.
-filename, messages, original_messages = check_load_file()
+file_or_dir_from_cli = get_file_or_dir_from_cli()
+
+# original_messages is used to track if there were changes to the original messages.
+filename, messages, original_messages = check_load_file(file_or_dir_from_cli)
 
 # If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
 model = get_model_from_cli()
@@ -489,7 +511,7 @@ model, model_api_name, family = get_model_api_and_family(model)
 inform_model_cost(model_api_name)
 
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
-assistant_name, user_name = check_names()
+assistant_name, user_name = check_cli_names(model)
 
 # if user did --max, we'll use that max context. Otherwise, we'll use the default max context.
 max_context = check_max_context()
@@ -521,6 +543,7 @@ while True:
         model = model_menu_items[options[selected_option]]
         unused, model_api_name, family = get_model_api_and_family(model)
         inform_model_cost(model_api_name)
+        assistant_name, user_name = check_cli_names(model)
 
     elif user_input.lower() == 'names':
         tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
@@ -579,7 +602,7 @@ while True:
         filename = tmpOutputFilename
 
     elif user_input.lower() == 'load':
-        filename, messages, original_messages = check_load_file()
+        filename, messages, original_messages = check_load_file(file_or_dir_from_cli)
 
     elif user_input.lower() == 'quit':
         if original_messages != json.dumps(messages):
@@ -632,7 +655,7 @@ while True:
                 openaiClient = OpenAI()
             assistant_response, tmp_cost = send_message_to_openai(openaiClient, model_api_name, api_messages)
         elif family == "text-generation-webui":
-            assistant_response, tmp_cost = send_message_to_local_TGWI(openaiClient, model_api_name, api_messages)
+            assistant_response, tmp_cost = send_message_to_local_TGW(openaiClient, model_api_name, api_messages)
         else:
             print(f"Unsupported model family: {family}")
             exit(1)
