@@ -271,8 +271,17 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
                 print("File does not exist.")
     return "", [], None
 
-def validate_model(model: str) -> Tuple[str, str, str]:
-    """Validate if the provided model is supported, if invalid, we will return None values.
+def inform_model_cost(model: str) -> None:
+    """Print out how much a model costs to use."""
+    print(f"Model set to {model}.")
+    tmp_input_cost, tmp_output_cost = _get_model_cost_values(model_api_name)
+    if tmp_input_cost > 0.0 or tmp_output_cost > 0.0:
+        print(f"{ANSI_RED}{ANSI_BOLD}Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens{ANSI_RESET}")
+    else:
+        print(f"{ANSI_GREEN}{ANSI_BOLD}Cost: Free!{ANSI_RESET}")
+
+def get_model_api_and_family(model: str) -> Tuple[str, str, str]:
+    """Given a model "short" name, validate the model and return the model's api name and family.
 
     Args:
     - model (str): The "short" version of the model to validate; see the keys of MODEL_INFO.
@@ -284,26 +293,24 @@ def validate_model(model: str) -> Tuple[str, str, str]:
     """
     return model, MODEL_INFO.get(model)["model_api_name"], MODEL_INFO.get(model)["model_family"]
 
-def check_model() -> Tuple[str, str, str]:
-    """Check and return the model specified in command line arguments.
-       For unsupported models, exit the program; with the given menuing system,
-       which only provides valid options, this should not happen.
+def get_model_from_cli() -> str:
+    """Check and return the model (the "short" name) specified in command line arguments.
+       If the model is not specified, return the default model.
+       For unsupported models, exit the program
 
     Returns:
-    - str: The model "short" name as passed in the cli
-    - str: The model's validated model api name
-    - str: The model's family
+    - str: the model short anme as passed in the cli
     """
     if "--model" in sys.argv:
         model_index = sys.argv.index("--model") + 1
         model = sys.argv[model_index]
         if model_index < len(sys.argv):
-            unused, model_api_name, family = validate_model(model)
+            unused, model_api_name, family = get_model_api_and_family(model)
             if model_api_name:
-                return model, model_api_name, family
-            print(f"Unsupported model: {model}")
+                return model
+            print(f"Unsupported model: {model}; valid modes: {MODEL_LIST}")
             exit(1)
-    return validate_model(DEFAULT_MODEL)
+    return DEFAULT_MODEL
 
 def check_names() -> Tuple[str, str]:
     """Check and return the names specified in command line arguments.
@@ -477,7 +484,9 @@ openaiClient = None
 filename, messages, original_messages = check_load_file()
 
 # If user did --model modelname, we'll use that model. Otherwise, we'll use DEFAULT_MODEL.
-model, model_api_name, family = check_model()
+model = get_model_from_cli()
+model, model_api_name, family = get_model_api_and_family(model)
+inform_model_cost(model_api_name)
 
 # if user did --names name1,name2, we'll use those names. Otherwise, we'll use the default names.
 assistant_name, user_name = check_names()
@@ -510,11 +519,8 @@ while True:
             print("Model not changed.")
             continue
         model = model_menu_items[options[selected_option]]
-        unused, model_api_name, family = validate_model(model)
-        print(f"Model changed to {model}.")
-        tmp_input_cost, tmp_output_cost = _get_model_cost_values(model_api_name)
-        if tmp_input_cost > 0.0 or tmp_output_cost > 0.0:
-            print(f"{ANSI_RED}{ANSI_BOLD}Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens{ANSI_RESET}")
+        unused, model_api_name, family = get_model_api_and_family(model)
+        inform_model_cost(model_api_name)
 
     elif user_input.lower() == 'names':
         tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
