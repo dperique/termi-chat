@@ -165,13 +165,13 @@ class TermiChat:
         for index, message in enumerate(rest_of_messages):
             self._print_message(index + 1, message)
 
-    def save_to_file(self, loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
+    def _save_to_file(self, loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
         """Save messages to a file.
            The loaded_filename is the filename passed in from the --load option; we will
            use the directory from the as the place to save the file"""
         if loaded_filename:
             directory = os.path.dirname(loaded_filename)
-            filename = os.path.join(directory, filename)
+            filename = os.path.join(directory, self.filename)
         else:
             filename = os.path.join("/termi-chats", filename)
 
@@ -450,13 +450,13 @@ class TermiChat:
             elif user_input.lower() == 'names':
                 tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
                 if len(tmp_input) > 0:
-                    assistant_name = tmp_input
-                    print(f"Assistant name changed to {assistant_name}.")
+                    self.assistant_name = tmp_input
+                    print(f"Assistant name changed to {self.assistant_name}.")
                 else:
                     print(f"Assistant name not changed.")
                 tmp_input = input(f"Enter the user name (blank = no change, default = {user_name}): ")
                 if len(tmp_input) > 0:
-                    user_name = tmp_input
+                    self.user_name = tmp_input
                     print(f"User name changed to {user_name}.")
                 else:
                     print(f"User name not changed.")
@@ -466,20 +466,20 @@ class TermiChat:
                 # We'll need to increase context number as we progress int the conversation
                 # and then the max will be shown.  For now, just try to do some rudimentary
                 # checking to make sure the number is valid.
-                if len(messages) < 2:
+                if len(self.messages) < 2:
                     print("No conversation context so max context cannot be changed.")
                     continue
-                tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(messages)-1}): ")
+                tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(self.messages)-1}): ")
                 if len(tmp_input) > 0:
                     try:
-                        max_context = int(tmp_input)
-                        if max_context >= len(messages):
-                            print(f"Invalid max context. Please enter a value less than {len(messages)}")
+                        self.max_context = int(tmp_input)
+                        if self.max_context >= len(self.messages):
+                            print(f"Invalid max context. Please enter a value less than {len(self.messages)}")
                             continue
                     except ValueError:
                         print("Invalid max context. Please enter a valid integer.")
                         continue
-                    print(f"Max context changed to {max_context}.")
+                    print(f"Max context changed to {self.max_context}.")
                 else:
                     print(f"Max context not changed.")
 
@@ -488,26 +488,26 @@ class TermiChat:
 
             elif user_input.lower() == 'clear':
                 # Just keep the system message and clear the rest.
-                messages = [{"role": "system", "content": messages[0]["content"], "timestamp": self._get_timestamp()}]
-                #self.timestamps = [self._get_timestamp()]
+                self.messages = [{"role": "system", "content": messages[0]["content"], "timestamp": self._get_timestamp()}]
+                self.timestamps = [self._get_timestamp()]
                 print("Conversation context cleared. Starting over.")
 
             elif user_input.lower() == 'save':
                 tmpOutputFilename = input("Enter filename to save the context (enter means current one): ")
                 if tmpOutputFilename == "":
-                    tmpOutputFilename = filename
-                save_to_file(filename, messages, tmpOutputFilename)
-                original_messages = json.dumps(messages)  # Update original state after saving
+                    tmpOutputFilename = self.filename
+                self._save_to_file(self.filename, self.messages, tmpOutputFilename)
+                self.original_messages = json.dumps(self.messages)  # Update original state after saving
                 print(f"Context saved to {tmpOutputFilename}.")
 
                 # The filename is updated to the saved filename.
-                filename = tmpOutputFilename
+                self.filename = tmpOutputFilename
 
             elif user_input.lower() == 'load':
                 self.filename, self.messages, self.original_messages = self.check_load_file(file_or_dir_from_cli)
 
             elif user_input.lower() == 'quit':
-                if original_messages != json.dumps(messages):
+                if self.original_messages != json.dumps(self.messages):
                     print("You have unsaved changes. Please save your context before quitting.")
                 else:
                     print("Quitting.\n")
