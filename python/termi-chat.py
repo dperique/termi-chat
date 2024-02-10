@@ -57,7 +57,8 @@ MODEL_INFO = {
     }
 }
 
-MODEL_LIST = ", ".join(MODEL_INFO.keys())
+MODEL_LIST_AS_STRING = ", ".join(MODEL_INFO.keys())
+MODEL_LIST = [model for model in MODEL_INFO.keys()]
 
 # The first one is the default.
 DEFAULT_MODEL = MODEL_LIST[0]
@@ -245,7 +246,10 @@ def get_file_or_dir_from_cli() -> str:
         load_file_index = sys.argv.index("--load") + 1
         if load_file_index < len(sys.argv):
             return sys.argv[load_file_index]
-    return os.getcwd()
+
+    # return the current directory with ./termi-chats as the default
+    # directory for saving conversation context.
+    return os.path.join(os.getcwd(), "termi-chats/")
 
 def check_load_file(filename: str) -> Tuple[str, List[Dict[str, str]], str]:
     """
@@ -323,7 +327,7 @@ def get_model_from_cli() -> str:
             unused, model_api_name, family = get_model_api_and_family(model)
             if model_api_name:
                 return model
-            print(f"Unsupported model: {model}; valid modes: {MODEL_LIST}")
+            print(f"Unsupported model: {model}; valid modes: {MODEL_LIST_AS_STRING}")
             exit(1)
     return DEFAULT_MODEL
 
@@ -359,7 +363,7 @@ def help_message() -> None:
     print(f"  Usage: {os.path.basename(__file__)} [--load filename] [--model modelname] [--names name1,name2]")
     print()
     print(f"    --load filename: Load conversation context from a file (contains system prompt)")
-    print(f"    --model modelname: Choose a model to use ({MODEL_LIST})")
+    print(f"    --model modelname: Choose a model to use ({MODEL_LIST_AS_STRING})")
     print(f"    --names name1,name2: Choose names for the assistant and user")
     print(f"    --max number: set max previous messages to use for context (this uses less tokens)")
     print()
@@ -644,7 +648,7 @@ while True:
         else:
             confirm = options[selected_option]
         if confirm.lower() == 'cancel':
-            print("\033[91mMessage canceled.\033[0m")
+            print(f"{ANSI_RED}Message canceled.{ANSI_RESET}")
             messages.pop()
             continue
         start_time = time.time()  # Start timing
@@ -665,9 +669,9 @@ while True:
         print()
         dashes()
         response_time = end_time - start_time
-        print(f"\033[1m\033[91mResponse time: {response_time:.2f} seconds\033[0m")
+        print(f"{ANSI_BOLD}{ANSI_RED}Response time: {response_time:.2f} seconds{ANSI_RESET}")
 
-        print(f"\n\033[1m\033[92m{assistant_name}:\033[0m")
+        print(f"{ANSI_BOLD}{ANSI_GREEN}{assistant_name}{ANSI_RESET}")
         print(wrap_text(assistant_response))
         messages.append({"role": "assistant",
                  "content": assistant_response,
