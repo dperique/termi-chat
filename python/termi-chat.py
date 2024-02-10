@@ -73,7 +73,7 @@ MENU_ITEMS = {
     "[r] resend  - Resend the current context (with no new input)": "resend",
     "[v] view    - See conversation context": "view",
     "[q] quit    - Quit the program": "quit",
-    "[e] exit    - Quit without saving": "exit"
+    "[x] exit    - Quit without saving": "exit"
 }
 
 # The second one is the model "short" name which should match the keys in MODEL_INFO.
