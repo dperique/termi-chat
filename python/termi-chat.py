@@ -327,7 +327,7 @@ class TermiChat:
         def send_request():
             nonlocal spinner
             try:
-                spinner.set_response(client.chat.completions.create(
+                spinner.set_response(self.openaiClient.chat.completions.create(
                     model=self.model_api_name,
                     messages=api_messages
                 ))
@@ -442,8 +442,8 @@ class TermiChat:
                     # Escape was pressed so do nothing.
                     print("Model not changed.")
                     continue
-                model = MODEL_MENU_ITEMS[options[selected_option]]
-                unused, self.model_api_name, self.family = self._get_model_api_and_family(model)
+                tmp_model = MODEL_MENU_ITEMS[options[selected_option]]
+                self.model, self.model_api_name, self.family = self._get_model_api_and_family(tmp_model)
                 self._inform_model_cost(self.model_api_name)
                 self.assistant_name, self.user_name = get_names_from_cli(model)
 
@@ -488,7 +488,7 @@ class TermiChat:
 
             elif user_input.lower() == 'clear':
                 # Just keep the system message and clear the rest.
-                self.messages = [{"role": "system", "content": messages[0]["content"], "timestamp": self._get_timestamp()}]
+                self.messages = [{"role": "system", "content": self.messages[0]["content"], "timestamp": self._get_timestamp()}]
                 self.timestamps = [self._get_timestamp()]
                 print("Conversation context cleared. Starting over.")
 
@@ -547,7 +547,7 @@ class TermiChat:
                     confirm = options[selected_option]
                 if confirm.lower() == 'cancel':
                     print(f"{ANSI_RED}Message canceled.{ANSI_RESET}")
-                    messages.pop()
+                    self.messages.pop()
                     continue
                 start_time = time.time()  # Start timing
 
