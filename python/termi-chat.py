@@ -443,9 +443,9 @@ class TermiChat:
                     print("Model not changed.")
                     continue
                 model = MODEL_MENU_ITEMS[options[selected_option]]
-                unused, model_api_name, family = self._get_model_api_and_family(model)
-                self._inform_model_cost(model_api_name)
-                assistant_name, user_name = get_names_from_cli(model)
+                unused, self.model_api_name, self.family = self._get_model_api_and_family(model)
+                self._inform_model_cost(self.model_api_name)
+                self.assistant_name, self.user_name = get_names_from_cli(model)
 
             elif user_input.lower() == 'names':
                 tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
@@ -504,7 +504,7 @@ class TermiChat:
                 filename = tmpOutputFilename
 
             elif user_input.lower() == 'load':
-                filename, messages, original_messages = check_load_file(file_or_dir_from_cli)
+                self.filename, self.messages, self.original_messages = self.check_load_file(file_or_dir_from_cli)
 
             elif user_input.lower() == 'quit':
                 if original_messages != json.dumps(messages):
