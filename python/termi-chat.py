@@ -47,6 +47,9 @@ MODEL_FAMILIES = {
 MODEL_LIST = ", ".join(SUPPORTED_MODELS.keys())
 DEFAULT_MODEL = "gpt3.5"
 
+# The total accumulated cost for the conversation(s)
+_total_cost = 0
+
 def dashes() -> None:
     """Print 80 dashes for separation."""
     print(f"{ANSI_BOLD}{ANSI_RED}{'-' * 80}{ANSI_RESET}")
@@ -121,10 +124,18 @@ def get_timestamp() -> str:
     """Return the current timestamp."""
     return datetime.now().strftime("%Y-%m-%d-%H:%M")
 
+def get_spent() -> str:
+    """Return a string that shows the amount spent so far.
+       If the amount is zero, it is green, otherwise it is red."""
+    if _total_cost == 0:
+        return f"{ANSI_GREEN}${_total_cost:.5f}{ANSI_RESET}"
+    else:
+        return f"{ANSI_RED}${_total_cost:.5f}{ANSI_RESET}"
+
 def get_multiline_input(model: str, max_context: int, user_name: str, prompt: str) -> str:
     """Get multiline input from the user."""
     print(f"{ANSI_YELLOW}{prompt}{ANSI_RESET}")
-    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context}){ANSI_RESET}, enter some (multi-line) text, finish with Ctrl-D on a blank line (Ctrl-D for menu)\n")
+    print(f"{ANSI_BOLD}{ANSI_GREEN}{user_name}->{model}(ctx={max_context},spent={ANSI_RESET}{get_spent()}{ANSI_BOLD}{ANSI_GREEN}){ANSI_RESET}, enter some (multi-line) text, finish with Ctrl-D on a blank line (Ctrl-D for menu)\n")
     lines = []
     while True:
         try:
@@ -249,7 +260,7 @@ def check_model() -> Tuple[str, str]:
        For unsupported models, exit the program.
 
     Returns:
-    - str: The validated model name to be used.
+    - str: The validated model name and family.
     """
     if "--model" in sys.argv:
         model_index = sys.argv.index("--model") + 1
@@ -298,7 +309,20 @@ if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
 
-def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
+def _get_model_cost_values(model: str) -> Tuple[float, float]:
+    """Get the cost values for any model as a pair of cost/1k tokens for input and output."""
+    if "gpt-3.5" in model:
+        return 0.0005, 0.0015
+    elif "gpt-4" in model:
+        return 0.01, 0.03
+    elif "Cassie" in model:
+        return 0.01, 0.03
+    elif "Assistant" in model:
+        return 0.0, 0.0
+    else:
+        return 0.01, 0.03
+
+def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
     """Send a message to the OpenAI API and return the response.
         Returns a response from the model once complete (or error (e.g., timeout))"""
 
@@ -327,27 +351,21 @@ def send_message_to_openai(client: OpenAI, model: str, api_messages: List[Dict[s
     # OpenAI has to status code -- so if we get a response, we assume 200 OK.
     # See https://community.openai.com/t/http-status-for-chat-completion/541491
     if response:
-        cost_per_input_1k_tokens = 0.01
-        cost_per_output_1k_tokens = 0.03
-        if "gpt-3.5" in model:
-            cost_per_input_1k_tokens = 0.0005
-            cost_per_input_1k_tokens = 0.0015
-        elif "gpt-4" in model:
-            cost_per_input_1k_tokens = 0.01
-            cost_per_output_1k_tokens = 0.03
-        else:
-            print("\nUnknown model, using gpt cost values")
-
+        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model)
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
         total_tokens = input_tokens + output_tokens
-        print(f"\nCost: ${cost_per_input_1k_tokens * input_tokens / 1000:.4f} for input, ${cost_per_output_1k_tokens * output_tokens / 1000:.4f} for output, total: ${cost_per_input_1k_tokens * total_tokens / 1000:.4f}")
-        return response.choices[0].message.content
+        cost_for_input = cost_per_input_1k_tokens * input_tokens / 1000
+        cost_for_output = cost_per_output_1k_tokens * output_tokens / 1000
+        total_for_both = cost_for_input + cost_for_output
+        total_cost += total_for_both
+        print(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
+        return response.choices[0].message.content, total_for_both
     else:
         print(f"\nRequest failed with unknown status code")
         return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model}: {str(response)}{ANSI_RESET}"
 
-def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> str:
+def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
     """Send a message to the text-generation-webui in the background and return immediately.
         Returns a response from the model once complete (or error (e.g., timeout))"""
     url = "http://192.168.1.52:5089/v1/chat/completions"
@@ -378,7 +396,20 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
     if response and response.status_code == 200:
         sys.stdout.flush()
         result = response.json()
-        return result["choices"][0]["message"]["content"]
+
+
+        cost_per_input_1k_tokens, cost_per_output_1k_tokens = _get_model_cost_values(model)
+        input_tokens = get_estimated_tokens(api_messages)
+        output_tokens = get_estimated_tokens_for_message(result["choices"][0]["message"]["content"])
+        total_tokens = input_tokens + output_tokens
+        cost_for_input = cost_per_input_1k_tokens * input_tokens / 1000
+        cost_for_output = cost_per_output_1k_tokens * output_tokens / 1000
+        total_for_both = cost_for_input + cost_for_output
+
+        global _total_cost
+        _total_cost += total_for_both
+        print(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
+        return result["choices"][0]["message"]["content"], total_for_both
     else:
         sys.stdout.flush()
         if response:
@@ -388,6 +419,9 @@ def send_message_to_local_TGWI(client: OpenAI, model: str, api_messages: List[Di
 def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
     tokens = sum(len(TOKEN_ENCODING.encode(messages['content'])) for messages in api_messages)
     return tokens
+
+def get_estimated_tokens_for_message(message: str) -> int:
+    return len(TOKEN_ENCODING.encode(message))
 
 menu_items = {
     "[c] clear   - Start over the conversation (retain the System prompt)": "clear",
@@ -453,6 +487,9 @@ while True:
         model = model_menu_items[options[selected_option]]
         model, family = validate_model(model)
         print(f"Model changed to {model}.")
+        tmp_input_cost, tmp_output_cost = _get_model_cost_values(model)
+        if tmp_input_cost > 0.0 or tmp_output_cost > 0.0:
+            print(f"{ANSI_RED}{ANSI_BOLD}Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens{ANSI_RESET}")
 
     elif user_input.lower() == 'names':
         tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
@@ -562,9 +599,9 @@ while True:
             if openaiClient is None:
                 # Initialize the OpenAI client
                 openaiClient = OpenAI()
-            assistant_response = send_message_to_openai(openaiClient, model, api_messages)
+            assistant_response, tmp_cost = send_message_to_openai(openaiClient, model, api_messages)
         elif family == "textgeneration-webui":
-            assistant_response = send_message_to_local_TGWI(openaiClient, model, api_messages)
+            assistant_response, tmp_cost = send_message_to_local_TGWI(openaiClient, model, api_messages)
         else:
             print(f"Unsupported model family: {family}")
             exit(1)
@@ -579,7 +616,8 @@ while True:
         print(f"\n\033[1m\033[92m{assistant_name}:\033[0m")
         print(wrap_text(assistant_response))
         messages.append({"role": "assistant",
-                         "content": assistant_response,
-                         "timestamp": get_timestamp(),
-                         "model": model,
-                         "response_time": f"{response_time:.2f}"})
+                 "content": assistant_response,
+                 "timestamp": get_timestamp(),
+                 "model": model,
+                 "response_seconds": round(response_time, 2),
+                 "cost_dollars": tmp_cost})
