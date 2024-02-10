@@ -18,6 +18,7 @@ from tiktoken import encoding_for_model
 TOKEN_ENCODING = encoding_for_model("text-davinci-003")
 
 # Constants for ANSI color codes
+ANSI_LIGHTBLUE = "\033[94m"
 ANSI_RED = "\033[91m"
 ANSI_GREEN = "\033[92m"
 ANSI_YELLOW = "\033[93m"
@@ -192,6 +193,8 @@ def check_max_context() -> int:
 def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
     """
     Check if a file should be loaded based on command line arguments.
+    If the user passes a directory to --load, we'll glob the directory and make a menu.
+    If the user passes a file to --load, we'll load the file.
 
     Returns:
     - Tuple containing the filename, messages, and a string representation of the original messages.
@@ -220,8 +223,6 @@ def check_load_file() -> Tuple[str, List[Dict[str, str]], Optional[str]]:
                         exit(0)
                     else:
                         filename = os.path.join(filename, files[selected_option])
-            else:
-                filename = files[0]
             if os.path.exists(filename):
                 try:
                     return load_file(filename)
@@ -389,15 +390,16 @@ def get_estimated_tokens(api_messages: List[Dict[str, str]]) -> int:
     return tokens
 
 menu_items = {
-    "[c] clear - Start over the conversation (retain the System prompt)": "clear",
-    "[l] load  - Load conversation context": "load",
-    "[m] max   - Set max back context": "max",
-    "[o] model - Choose a different model": "model",
-    "[n] names - Choose different names for the assistant and user": "names",
-    "[s] save  - Save conversation context": "save",
-    "[v] view  - See conversation context": "view",
-    "[q] quit  - Quit the program": "quit",
-    "[e] exit  - Quit without saving": "exit"
+    "[c] clear   - Start over the conversation (retain the System prompt)": "clear",
+    "[l] load    - Load conversation context": "load",
+    "[m] max     - Set max back context": "max",
+    "[o] model   - Choose a different model": "model",
+    "[n] names   - Choose different names for the assistant and user": "names",
+    "[s] save    - Save conversation context": "save",
+    "[r] resend  - Resend the current context (with no new input)": "resend",
+    "[v] view    - See conversation context": "view",
+    "[q] quit    - Quit the program": "quit",
+    "[e] exit    - Quit without saving": "exit"
 }
 
 model_menu_items = {
@@ -522,7 +524,19 @@ while True:
         print("Exiting without saving!\n")
         break
     else:
-        messages.append({"role": "user", "content": user_input, "timestamp": get_timestamp()})
+
+        if user_input.lower() == 'resend':
+            # If the user sends a message, we'll send it to the assistant and then print the response.
+            # We'll also track the time it takes to get the response.
+            if len(messages) < 2:
+                print("No conversation context to send to the assistant.")
+                continue
+            print(f"Sending {ANSI_LIGHTBLUE}unchanged{ANSI_RESET} conversation context to {model} assistant...")
+        else:
+            # Add the user's input to the messages
+            print(f"Sending conversation context to {model} assistant...")
+            messages.append({"role": "user", "content": user_input, "timestamp": get_timestamp()})
+
         api_messages = prepare_messages_for_api(messages, max_context)
 
         # Calculate tokens
@@ -567,4 +581,5 @@ while True:
         messages.append({"role": "assistant",
                          "content": assistant_response,
                          "timestamp": get_timestamp(),
-                         "model": model})
+                         "model": model,
+                         "response_time": f"{response_time:.2f}"})
