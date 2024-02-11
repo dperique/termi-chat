@@ -224,16 +224,12 @@ podman run -it --rm \
 
 ### bugs
 
-* when I run `utilties/select.sh ~/Desktop/Dropbox/ShareOut/Redhat/termi-chats/`, I save
-  my chat but it's saved to the container current working dir.  We need it saved to the
-  directory because those containers and ephemeral and the chat is lost.
+* Software is still under test ...
 
 ### coding
 
-* instead of globals for color, make functions for warning messages that use the color red.
-* make this a class so I can have multiple conversations in a REPL or jupyter notebook
 * add anthropic api support
-* fix the the TGWU so that we use an api call instead of requests/curl style so I can
+* fix the the TGW so that we use an api call instead of requests/curl style so I can
   specify the model
 * allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
 * allow me to set the temperature and maybe max tokens on the replies
