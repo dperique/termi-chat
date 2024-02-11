@@ -26,6 +26,7 @@ ANSI_BOLD = "\033[1m"
 ANSI_RESET = "\033[0m"
 
 # When you add a new model, add it to the MODEL_INFO dictionary.
+# See https://openai.com/pricing#language-models for pricing.
 # The first model is the default.
 MODEL_INFO = {
     "gpt3.5": {
@@ -57,11 +58,16 @@ MODEL_INFO = {
     }
 }
 
+# Used for things that need all models.
 MODEL_LIST_AS_STRING = ", ".join(MODEL_INFO.keys())
+
+# Used for iteration.
 MODEL_LIST = [model for model in MODEL_INFO.keys()]
 
 # The first one is the default.
 DEFAULT_MODEL = MODEL_LIST[0]
+
+DEFAULT_TERMI_CHAT_DIRNAME = "termi-chats"
 
 MENU_ITEMS = {
     "[c] clear   - Start over the conversation (retain the System prompt)": "clear",
@@ -83,6 +89,18 @@ MODEL_MENU_ITEMS = {
     "[c] Cassie (local)": "Cassie",
     "[a] Assistant (local)": "Assistant"
 }
+
+def warn_message(message_str: str) -> None:
+    """Print a warning message in red."""
+    print(f"{ANSI_RED}{ANSI_BOLD}{message_str}{ANSI_RESET}")
+
+def marker_message(message_str: str) -> None:
+    """Print a message in light blue."""
+    print(f"{ANSI_LIGHTBLUE}{ANSI_BOLD}{message_str}{ANSI_RESET}")
+
+def info_message(message_str: str) -> None:
+    """Print an informational message in green."""
+    print(f"{ANSI_GREEN}{ANSI_BOLD}{message_str}{ANSI_RESET}")
 class TermiChat:
     def __init__(self, model: str, max_context: int, assistant_name: str, user_name: str, filename_or_dir_from_cli: str):
         self.max_context = max_context
@@ -92,7 +110,7 @@ class TermiChat:
         # We only need the OpenAI client if we are using an OpenAI model
         # This makes it so you don't need an API key if you are using a
         # local model.
-        self.openaiClient = None
+        self._openaiClient = None
 
         # The total accumulated cost for the conversation(s)
         self._total_cost = 0.0
@@ -122,7 +140,7 @@ class TermiChat:
 
     def _dashes(self) -> None:
         """Print 80 dashes for separation."""
-        print(f"{ANSI_BOLD}{ANSI_RED}{'-' * 80}{ANSI_RESET}")
+        marker_message("-" * 80)
 
     def _wrap_text(self, text: str, width: int = 80) -> str:
         """Wrap text except inside code blocks."""
@@ -138,8 +156,11 @@ class TermiChat:
                 wrapped_text += textwrap.fill(line, width=width) + '\n'
         return wrapped_text
 
-    def _print_message(self, index: int, message: str) -> None:
-        """Print the messages."""
+    def _print_message(self, index: int, message: Dict[str, str]) -> None:
+        """Print a single message.  A message has evolved to be a dictionary with
+           a role, content, and timestamp.  We will also print the model and the
+           response time if it is an assistant message.  We will also print the
+           cost of the message if it is an assistant message"""
         self._dashes()
         timestamp = message.get("timestamp", "->")
         formatted_text = self._wrap_text(message['content'])
@@ -150,14 +171,21 @@ class TermiChat:
             print(f"[{index}] {timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
         print(formatted_text)
 
-    def print_conversation(self) -> None:
-        """Print the formatted conversation.
-           We will always keep message[0] which contains the system prompt."""
+    def _print_conversation(self) -> None:
+        """Print the formatted conversation stored as self.messages.
+           We will always have message[0] which contains the system prompt."""
         if len(self.messages) < 1:
             print("No conversation context to display.")
             return
-        print(f"Length of messages: {len(self.messages)}")
+        print(f"Length of messages: {len(self.messages)}, max_context: {self.max_context}")
         self._print_message(0, self.messages[0])
+
+        # max_context of 0 means we just pass in the system prompt.
+        if self.max_context == 0:
+            return
+
+        # If we tweaked the max context, we'll show the last max_context
+        # of messages
         if self.max_context < len(self.messages):
             rest_of_messages = self.messages[-self.max_context:]
         else:
@@ -167,20 +195,35 @@ class TermiChat:
 
     def _save_to_file(self, loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
         """Save messages to a file.
-           The loaded_filename is the filename passed in from the --load option; we will
-           use the directory from the as the place to save the file"""
+
+        Args:
+        - str: loaded_filename is the filename passed in from the --load option; we will
+          use the directory from the as the place to save the file
+        - List of Dict[str,str]: messages is the messages to save to the file
+        - str: filename is the filename to save the messages to (this could be different
+          than the self.filename if the user specifies a different filename to save to)
+        """
         if loaded_filename:
+            # If we had a dir/filename passed, we'll use that for where to output the file.
             directory = os.path.dirname(loaded_filename)
-            filename = os.path.join(directory, self.filename)
+            filename = os.path.join(directory, filename)
         else:
-            filename = os.path.join("/termi-chats", filename)
+            # The default dir for the files.
+            filename = os.path.join("/", DEFAULT_TERMI_CHAT_DIRNAME, filename)
 
         print(f"Saving conversation context to {filename}")
         with open(filename, 'w') as file:
             json.dump(messages, file, indent=2)
 
     def _load_from_file(self, filename: str) -> List[Dict[str, str]]:
-        """Load messages from a file."""
+        """Load messages from a file.
+
+        Args:
+        - str: filename is the name of the file to load.
+
+        Returns:
+        - List of Dict[str,str]: messages were read from the file
+        """
         try:
             with open(filename, 'r') as file:
                 return json.load(file)
@@ -191,7 +234,8 @@ class TermiChat:
             exit(1)
 
     def _get_timestamp(self) -> str:
-        """Return the current timestamp."""
+        """Return the current timestamp in a readable format so we can save when
+        we send a message to the assistant."""
         return datetime.now().strftime("%Y-%m-%d-%H:%M")
 
     def _get_spent(self, amount: float) -> str:
@@ -216,22 +260,29 @@ class TermiChat:
                 lines.append(line)
             except EOFError:
                 break
-        print(f"{ANSI_RED}Processing...{ANSI_RESET}\n")
+        marker_message("Processing ...")
         return '\n'.join(lines)
 
     def _prepare_messages_for_api(self) -> List[Dict[str, str]]:
         """Prepare messages for the API by extracting only what the api needs
-        and limit messages to the first message (the system prompot) plus the
+        and limit messages to the first message (the system prompt) plus the
         last n messages where n is max_context.  Remember a message is a
-        role/context pair where role can be either assistant or user"""
+        role/context pair where role can be either assistant or user
+
+        This is necessary because we add other data in the json and the api
+        only wants role and content."""
 
         # Limit messages to the first message plus the last n=max_context messages
+
+        if self.max_context == 0:
+            return [{"role": self.messages[0]["role"], "content": self.messages[0]["content"]}]
         return [{"role": msg["role"], "content": msg["content"]} for msg in [self.messages[0]] + self.messages[-self.max_context:]]
 
     def _load_json_file(self, filename: str) -> Tuple[str, List[Dict[str, str]], str]:
         """
         Load messages from a file.
-        Our caller already checked that the file exists.
+        Our caller already checked that the file exists; this generic function
+        does not modify any instance variables.
 
         Args:
         - filename (str): The name of the file to load.
@@ -244,19 +295,21 @@ class TermiChat:
           messages read from the file)
         """
         try:
-            self.messages = self._load_from_file(filename)
-            self.original_messages = json.dumps(self.messages)
-            num_messages = len(self.messages)
+            tmp_messages = self._load_from_file(filename)
+            tmp_original_messages = json.dumps(tmp_messages)
+            num_messages = len(tmp_messages)
             print(f"Context loaded from {filename}.")
             print(f"Loaded {num_messages} {'message' if num_messages == 1 else 'messages'}")
-            return filename, self.messages, self.original_messages
+            return filename, tmp_messages, tmp_original_messages
         except Exception as e:
             print(f"Error loading file: {e}")
 
-    def check_load_file(self, filename: str) -> Tuple[str, List[Dict[str, str]], str]:
+    def check_load_file(self, filename_or_dir: str) -> Tuple[str, List[Dict[str, str]], str]:
         """
-        Given a filename, determine if it's a directory or a file and load the file.
-        If it's a directory, we'll glob the directory and make a menu.
+        Given a string for a filename_or_dir, determine if it's a directory or a file.
+        If it's a directory, we'll glob the directory, make a menu, and let the user
+        choose a file to load.  If it's a file, we'll load the file.  This generic
+        function does not modify any instance variables.
 
         Returns:
         - Tuple containing
@@ -267,11 +320,11 @@ class TermiChat:
         """
         # if filename is a directory, glob the directory for *.json files, sort,
         # and present a menu to the user to choose a file to load.
-        if os.path.isdir(filename):
-            files = glob.glob(os.path.join(filename, "*.json"))
+        if os.path.isdir(filename_or_dir):
+            files = glob.glob(os.path.join(filename_or_dir, "*.json"))
             files = sorted([os.path.basename(file) for file in files], key=str.lower)
             if len(files) == 0:
-                print(f"No JSON files found in {filename}; use --load <aDir> or --load <aJsonFile> to specify a file or directory.")
+                print(f"No JSON files found in {filename_or_dir}; use --load <aDir> or --load <aJsonFile> to specify a file or directory.")
                 exit(1)
             else:
                 # Give the menu so user can choose a file to load.
@@ -282,10 +335,10 @@ class TermiChat:
                     print("No file selected. Exiting.")
                     exit(0)
                 else:
-                    filename = os.path.join(filename, files[selected_option])
-        if os.path.exists(filename):
+                    filename_or_dir = os.path.join(filename_or_dir, files[selected_option])
+        if os.path.exists(filename_or_dir):
             try:
-                return self._load_json_file(filename)
+                return self._load_json_file(filename_or_dir)
             except Exception as e:
                 print(f"Error loading file: {e}")
         else:
@@ -297,11 +350,11 @@ class TermiChat:
         print(f"Model set to {model}.")
         tmp_input_cost, tmp_output_cost = self._get_model_cost_values(self.model_api_name)
         if tmp_input_cost > 0.0 or tmp_output_cost > 0.0:
-            print(f"{ANSI_RED}{ANSI_BOLD}Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens{ANSI_RESET}")
+            warn_message(f"Cost: ${tmp_input_cost:.4f}/1k input tokens, ${tmp_output_cost:.4f}/1k output tokens")
         else:
-            print(f"{ANSI_GREEN}{ANSI_BOLD}Cost: Free!{ANSI_RESET}")
+            info_message(f"Cost: Free!")
 
-    def _get_model_api_and_family(self, model: str) -> Tuple[str, str, str]:
+    def _get_model_api_and_family(self, model_short_name: str) -> Tuple[str, str, str]:
         """Given a model "short" name, validate the model and return the model's api name and family.
 
         Args:
@@ -312,22 +365,32 @@ class TermiChat:
         - The model's api name if supported, None otherwise.
         - The model family if supported, None otherwise.
         """
-        if model not in MODEL_LIST:
-            print(f"Unsupported model: {model}; valid modes: {MODEL_LIST_AS_STRING}")
+        if model_short_name not in MODEL_LIST:
+            print(f"Unsupported model: {model_short_name}; valid modes: {MODEL_LIST_AS_STRING}")
             exit(1)
-        return model, MODEL_INFO.get(model)["model_api_name"], MODEL_INFO.get(model)["model_family"]
+        return model_short_name, MODEL_INFO.get(model_short_name)["model_api_name"], MODEL_INFO.get(model_short_name)["model_family"]
 
     def send_message_to_openai(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
         """Send a message to the OpenAI API and return the response.
-            Returns a response from the model once complete (or error (e.g., timeout))
-            and the cost of the request."""
+
+           Args:
+           - List[Dict[str, str]]: api_messages is a list of messages to send to the model.
+             These messages contain only what the api will accept.
+
+           Returns:
+           - Tuple[str, float]: The response from the model and the cost of the request.
+             Returns an error string if there was a problem.
+        """
 
         spinner = Spinner()
 
         def send_request():
             nonlocal spinner
+            if self._openaiClient is None:
+                # Initialize the OpenAI client
+                self._openaiClient = OpenAI()
             try:
-                spinner.set_response(self.openaiClient.chat.completions.create(
+                spinner.set_response(self._openaiClient.chat.completions.create(
                     model=self.model_api_name,
                     messages=api_messages
                 ))
@@ -340,11 +403,11 @@ class TermiChat:
         response = spinner.response
 
         if response is None:
-            print(f"{ANSI_BOLD}{ANSI_RED}\nTimeout condition: Request took too long to complete{ANSI_RESET}")
+            warn_message("Timeout condition: Request took too long to complete")
 
         sys.stdout.flush()
 
-        # OpenAI has to status code -- so if we get a response, we assume 200 OK.
+        # OpenAI has no status code -- so if we get a response, we assume 200 OK.
         # See https://community.openai.com/t/http-status-for-chat-completion/541491
         if response:
             cost_per_input_1k_tokens, cost_per_output_1k_tokens = self._get_model_cost_values(self.model_api_name)
@@ -356,16 +419,26 @@ class TermiChat:
             total_for_both = cost_for_input + cost_for_output
 
             self._total_cost += total_for_both
-            print(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
+            if total_for_both > 0.0:
+                warn_message(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
             return response.choices[0].message.content, total_for_both
         else:
-            print(f"\nRequest failed with unknown status code")
+            warn_message(f"\nRequest failed with unknown status code")
             return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
     def send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
         """Send a message to the text-generation-webui in the background and return immediately.
-            Returns a response from the model once complete (or error (e.g., timeout))
-            and the cost of the request."""
+
+            Args:
+            - List[Dict[str, str]]: api_messages is a list of messages to send to the model.
+              These messages contain only what the api will accept.
+            - Returns:
+           - Tuple[str, float]: The response from the model and the cost of the request.
+             Returns an error string if there was a problem.
+        """
+
+        # Today, we hardcode this until we can figure out how to load a specific
+        # type of model and character.
         url = "http://192.168.1.52:5089/v1/chat/completions"
         headers = {"Content-Type": "application/json"}
 
@@ -379,6 +452,7 @@ class TermiChat:
         def post_request():
             nonlocal spinner
             try:
+                # Today, we do a raw request vs. calling a proper api.
                 spinner.set_response(requests.post(url, json=data, headers=headers))
             except Exception as e:
                 print(f"Error: {e}")
@@ -389,36 +463,43 @@ class TermiChat:
         response = spinner.response
 
         if response is None:
-            print(f"{ANSI_BOLD}{ANSI_RED}\nTimeout condition: Request took too long to complete{ANSI_RESET}")
+            warn_message("\nTimeout condition: Request took too long to complete")
 
         if response and response.status_code == 200:
             sys.stdout.flush()
             result = response.json()
 
-
+            # Print the model so we know which one we're using
+            marker_message(f"\nmodel = {result['model']}")
             cost_per_input_1k_tokens, cost_per_output_1k_tokens = self._get_model_cost_values(self.model_api_name)
-            input_tokens = self.get_estimated_tokens(api_messages)
-            output_tokens = self.get_estimated_tokens_for_message(result["choices"][0]["message"]["content"])
+
+            # Get the token counts.
+            input_tokens = result['usage']['prompt_tokens']
+            output_tokens = result['usage']['completion_tokens']
+
             total_tokens = input_tokens + output_tokens
             cost_for_input = cost_per_input_1k_tokens * input_tokens / 1000
             cost_for_output = cost_per_output_1k_tokens * output_tokens / 1000
             total_for_both = cost_for_input + cost_for_output
 
             self._total_cost += total_for_both
-            print(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
+            if total_for_both > 0.0:
+                warn_message(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
             return result["choices"][0]["message"]["content"], total_for_both
         else:
             sys.stdout.flush()
             if response:
-                print(f"Request failed with status code {response.status_code}: {response.text}")
+                warn_message(f"Request failed with status code {response.status_code}: {response.text}")
             return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
-    def get_estimated_tokens(self, api_messages: List[Dict[str, str]]) -> int:
-        tokens = sum(len(TOKEN_ENCODING.encode(messages['content'])) for messages in api_messages)
+    def get_estimated_tokens(self, message_list: List[Dict[str, str]]) -> int:
+        """ Get the estimated number of tokens for a list of messages."""
+        tokens = sum(self._get_estimated_tokens_for_message(messages['content']) for messages in message_list)
         return tokens
 
-    def get_estimated_tokens_for_message(self, message: str) -> int:
-        return len(TOKEN_ENCODING.encode(message))
+    def _get_estimated_tokens_for_message(self, message_string: str) -> int:
+        """Get the estimated number of tokens for a single message string."""
+        return len(TOKEN_ENCODING.encode(message_string))
 
     def run_conversation(self):
         # Start an infinite loop to keep the conversation going
@@ -445,7 +526,7 @@ class TermiChat:
                 tmp_model = MODEL_MENU_ITEMS[options[selected_option]]
                 self.model, self.model_api_name, self.family = self._get_model_api_and_family(tmp_model)
                 self._inform_model_cost(self.model_api_name)
-                self.assistant_name, self.user_name = get_names_from_cli(model)
+                self.assistant_name, self.user_name = get_names_from_cli(self.model)
 
             elif user_input.lower() == 'names':
                 tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
@@ -463,28 +544,26 @@ class TermiChat:
                 continue
 
             elif user_input.lower() == 'max':
-                # We'll need to increase context number as we progress int the conversation
-                # and then the max will be shown.  For now, just try to do some rudimentary
-                # checking to make sure the number is valid.
                 if len(self.messages) < 2:
                     print("No conversation context so max context cannot be changed.")
                     continue
                 tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(self.messages)-1}): ")
                 if len(tmp_input) > 0:
                     try:
-                        self.max_context = int(tmp_input)
-                        if self.max_context >= len(self.messages):
+                        tmp_max = int(tmp_input)
+                        if tmp_max >= len(self.messages):
                             print(f"Invalid max context. Please enter a value less than {len(self.messages)}")
                             continue
                     except ValueError:
                         print("Invalid max context. Please enter a valid integer.")
                         continue
+                    self.max_context = tmp_max
                     print(f"Max context changed to {self.max_context}.")
                 else:
                     print(f"Max context not changed.")
 
             elif user_input.lower() == 'view':
-                self.print_conversation()
+                self._print_conversation()
 
             elif user_input.lower() == 'clear':
                 # Just keep the system message and clear the rest.
@@ -500,10 +579,11 @@ class TermiChat:
                 self.original_messages = json.dumps(self.messages)  # Update original state after saving
                 print(f"Context saved to {tmpOutputFilename}.")
 
-                # The filename is updated to the saved filename.
+                # The new filename becomes the current filename for future saves.
                 self.filename = tmpOutputFilename
 
             elif user_input.lower() == 'load':
+                # The new chosen filename becomes the current filename for future saves.
                 self.filename, self.messages, self.original_messages = self.check_load_file(file_or_dir_from_cli)
 
             elif user_input.lower() == 'quit':
@@ -514,8 +594,23 @@ class TermiChat:
                     break
 
             elif user_input.lower() == 'exit':
-                print("Exiting without saving!\n")
-                break
+
+                # If the user has unsaved changes, we'll print a warning.
+                if self.original_messages != json.dumps(self.messages):
+                    warn_message("You have unsaved changes. Are you sure you want to exit without saving?")
+                else:
+                    print("Goodbye.\n")
+                    break
+                # Print a menu for yes/no.
+                options = ["Yes", "No"]
+                terminal_menu = TerminalMenu(options)
+                selected_option = terminal_menu.show()
+                if selected_option is None:
+                    # Escape was pressed so do nothing.
+                    continue
+                if options[selected_option].lower() == "yes":
+                    warn_message("Exited with unsaved changes.\n")
+                    break
             else:
 
                 if user_input.lower() == 'resend':
@@ -536,7 +631,7 @@ class TermiChat:
                 estimated_tokens = self.get_estimated_tokens(api_messages)
                 print(f"Estimated tokens to be sent: {estimated_tokens}")
 
-                # Ask user to press <ENTER> to confirm they want to send the message
+                # Give the user a chance to read their message and send or cancel.
                 options = [ f"Send to '{self.model}' assistant", "Cancel" ]
                 terminal_menu = TerminalMenu(options)
                 selected_option = terminal_menu.show()
@@ -546,15 +641,13 @@ class TermiChat:
                 else:
                     confirm = options[selected_option]
                 if confirm.lower() == 'cancel':
-                    print(f"{ANSI_RED}Message canceled.{ANSI_RESET}")
+                    warn_message("Message canceled.")
                     self.messages.pop()
                     continue
+
                 start_time = time.time()  # Start timing
 
                 if self.family == "openai":
-                    if self.openaiClient is None:
-                        # Initialize the OpenAI client
-                        self.openaiClient = OpenAI()
                     assistant_response, tmp_cost = self.send_message_to_openai(api_messages)
                 elif self.family == "text-generation-webui":
                     assistant_response, tmp_cost = self.send_message_to_local_TGW(api_messages)
@@ -567,9 +660,9 @@ class TermiChat:
                 print()
                 self._dashes()
                 response_time = end_time - start_time
-                print(f"{ANSI_BOLD}{ANSI_RED}Response time: {response_time:.2f} seconds{ANSI_RESET}")
+                warn_message(f"Response time: {response_time:.2f} seconds")
 
-                print(f"{ANSI_BOLD}{ANSI_GREEN}{self.assistant_name}{ANSI_RESET}")
+                info_message(f"{self.assistant_name}")
                 print(self._wrap_text(assistant_response))
                 self.messages.append({"role": "assistant",
                          "content": assistant_response,
@@ -591,9 +684,9 @@ def get_file_or_dir_from_cli() -> str:
         if load_file_index < len(sys.argv):
             return sys.argv[load_file_index]
 
-    # return the current directory with ./termi-chats as the default
-    # directory for saving conversation context.
-    return os.path.join(os.getcwd(), "termi-chats/")
+    # return the current directory with the default dirname as
+    # the default directory for saving conversation context.
+    return os.path.join(os.getcwd(), DEFAULT_TERMI_CHAT_DIRNAME, "/")
 
 def get_model_from_cli() -> str:
     """Check and return the model (the "short" name) specified in command line arguments.
@@ -610,7 +703,7 @@ def get_model_from_cli() -> str:
     else:
         return DEFAULT_MODEL
 
-def get_names_from_cli(model: str) -> Tuple[str, str]:
+def get_names_from_cli(model_short_name: str) -> Tuple[str, str]:
     """Given the model "short" name, check and return the names specified in
        command line (--names) arguments.
 
@@ -618,7 +711,7 @@ def get_names_from_cli(model: str) -> Tuple[str, str]:
     - Tuple[str, str]: Names for the assistant and user.
     """
     # Match the ChatGPT UI for names regardless of what the user specified for --names
-    if model == "gpt3.5" or model == "gpt4":
+    if model_short_name == "gpt3.5" or model_short_name == "gpt4":
         return "ChatGPT", "You"
     if "--names" in sys.argv:
         name_index = sys.argv.index("--names") + 1
@@ -637,12 +730,13 @@ def get_names_from_cli(model: str) -> Tuple[str, str]:
             exit(1)
     return "Assistant", "User"
 
-def get_max_content_from_cli() -> int:
+def get_max_context_from_cli() -> int:
     """Check and return the max context specified in command line arguments.
     If you have a conversation with a large number of back and forth messages,
     the context gets rather big.  You can limit the context to the last n
     messages (a lot of the time, the most recent messages are the most
     relevant anyway).
+    We always include message[0] which is the system prompt.
 
     Returns:
     - int: The max context to be used.
@@ -679,7 +773,7 @@ model = get_model_from_cli()
 assistant_name, user_name = get_names_from_cli(model)
 
 # if user did --max, we'll use that max context. Otherwise, we'll use the default max context.
-max_context = get_max_content_from_cli()
+max_context = get_max_context_from_cli()
 
 if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
