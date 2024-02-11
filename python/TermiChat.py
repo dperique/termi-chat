@@ -1,5 +1,4 @@
 import time
-import textwrap
 import json
 import os
 import sys
@@ -11,17 +10,10 @@ from openai import OpenAI
 from spinner import Spinner
 from simple_term_menu import TerminalMenu
 from tiktoken import encoding_for_model
+from utils import marker_message, warn_message, info_message, dashes, wrap_text, ANSI_BOLD, ANSI_YELLOW, ANSI_GREEN, ANSI_LIGHTBLUE, ANSI_RED, ANSI_RESET
 
 # Used for counting tokens
 TOKEN_ENCODING = encoding_for_model("text-davinci-003")
-
-# Constants for ANSI color codes
-ANSI_LIGHTBLUE = "\033[94m"
-ANSI_RED = "\033[91m"
-ANSI_GREEN = "\033[92m"
-ANSI_YELLOW = "\033[93m"
-ANSI_BOLD = "\033[1m"
-ANSI_RESET = "\033[0m"
 
 # When you add a new model, add it to the MODEL_INFO dictionary.
 # See https://openai.com/pricing#language-models for pricing.
@@ -87,18 +79,6 @@ MODEL_MENU_ITEMS = {
     "[c] Cassie (local)": "Cassie",
     "[a] Assistant (local)": "Assistant"
 }
-
-def warn_message(message_str: str) -> None:
-    """Print a warning message in red."""
-    print(f"{ANSI_RED}{ANSI_BOLD}{message_str}{ANSI_RESET}")
-
-def marker_message(message_str: str) -> None:
-    """Print a message in light blue."""
-    print(f"{ANSI_LIGHTBLUE}{ANSI_BOLD}{message_str}{ANSI_RESET}")
-
-def info_message(message_str: str) -> None:
-    """Print an informational message in green."""
-    print(f"{ANSI_GREEN}{ANSI_BOLD}{message_str}{ANSI_RESET}")
 
 def get_file_or_dir_from_cli() -> str:
     """Check and return the file or directory specified in command line arguments.
@@ -192,7 +172,8 @@ def get_names_from_cli(model_short_name: str) -> Tuple[str, str]:
     return "Assistant", "User"
 
 class TermiChat:
-    def __init__(self, model: str, max_context: int, assistant_name: str, user_name: str, file_or_dir_from_cli: str):
+    def __init__(self, name: str, model: str, max_context: int, assistant_name: str, user_name: str, file_or_dir_from_cli: str):
+        self.name = name
         self.max_context = max_context
         self.assistant_name = assistant_name
         self.user_name = user_name
@@ -228,60 +209,20 @@ class TermiChat:
 
         return MODEL_INFO[model]["cost_input"], MODEL_INFO[model]["cost_output"]
 
-    def _dashes(self) -> None:
-        """Print 80 dashes for separation."""
-        marker_message("-" * 80)
-
-    def _wrap_text(self, text: str, width: int = 80) -> str:
-        """Wrap text except inside code blocks."""
-        wrapped_text = ""
-        in_code_block = False
-        for line in text.split('\n'):
-            if line.startswith("```"):
-                in_code_block = not in_code_block
-                wrapped_text += line + '\n'
-            elif in_code_block:
-                wrapped_text += line + '\n'
-            else:
-                wrapped_text += textwrap.fill(line, width=width) + '\n'
-        return wrapped_text
-
     def _print_message(self, index: int, message: Dict[str, str]) -> None:
         """Print a single message.  A message has evolved to be a dictionary with
            a role, content, and timestamp.  We will also print the model and the
            response time if it is an assistant message.  We will also print the
            cost of the message if it is an assistant message"""
-        self._dashes()
+        dashes()
         timestamp = message.get("timestamp", "->")
-        formatted_text = self._wrap_text(message['content'])
+        formatted_text = wrap_text(message['content'])
         model = message.get("model", "unknown model")
         if message['role'] == "Assistant":
             print(f"[{index}] {timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()({model})}{ANSI_RESET}:")
         else:
             print(f"[{index}] {timestamp} {ANSI_BOLD}{ANSI_GREEN}{message['role'].title()}{ANSI_RESET}:")
         print(formatted_text)
-
-    def _print_conversation(self) -> None:
-        """Print the formatted conversation stored as self.messages.
-           We will always have message[0] which contains the system prompt."""
-        if len(self.messages) < 1:
-            print("No conversation context to display.")
-            return
-        print(f"Length of messages: {len(self.messages)}, max_context: {self.max_context}")
-        self._print_message(0, self.messages[0])
-
-        # max_context of 0 means we just pass in the system prompt.
-        if self.max_context == 0:
-            return
-
-        # If we tweaked the max context, we'll show the last max_context
-        # of messages
-        if self.max_context < len(self.messages):
-            rest_of_messages = self.messages[-self.max_context:]
-        else:
-            rest_of_messages = self.messages[1:]
-        for index, message in enumerate(rest_of_messages):
-            self._print_message(index + 1, message)
 
     def _save_to_file(self, loaded_filename, messages: List[Dict[str, str]], filename: str) -> None:
         """Save messages to a file.
@@ -460,7 +401,7 @@ class TermiChat:
             exit(1)
         return model_short_name, MODEL_INFO.get(model_short_name)["model_api_name"], MODEL_INFO.get(model_short_name)["model_family"]
 
-    def send_message_to_openai(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+    def _send_message_to_openai(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
         """Send a message to the OpenAI API and return the response.
 
            Args:
@@ -516,7 +457,7 @@ class TermiChat:
             warn_message(f"\nRequest failed with unknown status code")
             return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
 
-    def send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+    def _send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
         """Send a message to the text-generation-webui in the background and return immediately.
 
             Args:
@@ -591,6 +532,147 @@ class TermiChat:
         """Get the estimated number of tokens for a single message string."""
         return len(TOKEN_ENCODING.encode(message_string))
 
+    def help(self) -> None:
+        """Print help message for the methods used when running interactively."""
+        print("clear()              start the conversation over (clearing all but system content)")
+        print("set_max_context()    set the max context to use")
+        print("set_model(tmp_model) set the model to use")
+        print("display()            display instance info")
+        print("send(str, ask=False) send a message to the assistant; user_input can be empty")
+        print("save(filename)       save the conversation context to a file")
+        print("view()               print the formatted conversation stored as self.messages")
+        print("run_conversation()   start an infinite loop to keep the conversation going")
+
+    def display(self) -> None:
+        """Display instance info"""
+        print(f"TermiChat instance ({self.name}):")
+        print(f"  model            : {self.model}")
+        print(f"  model_api_name   : {self.model_api_name}")
+        print(f"  family           : {self.family}")
+        print(f"  max_context      : {self.max_context}")
+        print(f"  assistant_name   : {self.assistant_name}")
+        print(f"  user_name        : {self.user_name}")
+        print(f"  filename         : {self.filename}")
+        print(f"  messages         : {len(self.messages)}")
+        print(f"  original_messages: {len(self.original_messages)}")
+        print(f"  _total_cost      : {self._total_cost}")
+        print(f"  timestamps       : {self.timestamps}")
+
+    def view(self) -> None:
+        """Print the formatted conversation stored as self.messages.
+           We will always have message[0] which contains the system prompt."""
+        if len(self.messages) < 1:
+            print("No conversation context to display.")
+            return
+        print(f"Length of messages: {len(self.messages)}, max_context: {self.max_context}")
+        self._print_message(0, self.messages[0])
+
+        # max_context of 0 means we just pass in the system prompt.
+        if self.max_context == 0:
+            return
+
+        # If we tweaked the max context, we'll show the last max_context
+        # of messages
+        if self.max_context < len(self.messages):
+            rest_of_messages = self.messages[-self.max_context:]
+        else:
+            rest_of_messages = self.messages[1:]
+        for index, message in enumerate(rest_of_messages):
+            self._print_message(index + 1, message)
+
+    def clear(self) -> None:
+        """Just keep the system message and clear the rest."""
+        self.messages = [{"role": "system", "content": self.messages[0]["content"], "timestamp": self._get_timestamp()}]
+        self.timestamps = [self._get_timestamp()]
+        print("Conversation context cleared. Starting over.")
+
+    def save(self, tmpOutputFilename: str) -> None:
+        self._save_to_file(self.filename, self.messages, tmpOutputFilename)
+        self.original_messages = json.dumps(self.messages)  # Update original state after saving
+        print(f"Context saved to {tmpOutputFilename}.")
+
+        # The new filename becomes the current filename for future saves.
+        self.filename = tmpOutputFilename
+
+    def set_max_context(self) -> None:
+        """Set the max context to use."""
+        if len(self.messages) < 2:
+            print("No conversation context so max context cannot be changed.")
+            return
+        tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(self.messages)-1}): ")
+        if len(tmp_input) > 0:
+            try:
+                tmp_max = int(tmp_input)
+                if tmp_max >= len(self.messages):
+                    print(f"Invalid max context. Please enter a value less than {len(self.messages)}")
+                    return
+            except ValueError:
+                print("Invalid max context. Please enter a valid integer.")
+                return
+            self.max_context = tmp_max
+            print(f"Max context changed to {self.max_context}.")
+        else:
+            print(f"Max context not changed.")
+
+    def set_model(self, tmp_model: str) -> None:
+        """Set the model to use."""
+        self.model, self.model_api_name, self.family = self._get_model_api_and_family(tmp_model)
+        self._inform_model_cost(self.model_api_name)
+        self.assistant_name, self.user_name = get_names_from_cli(self.model)
+
+    def send(self, user_input: str, confirm: bool = False) -> None:
+        if len(user_input) > 0:
+            self.messages.append({"role": "user", "content": user_input, "timestamp": self._get_timestamp()})
+
+        api_messages = self._prepare_messages_for_api()
+
+        if confirm:
+            # Calculate tokens
+            estimated_tokens = self.get_estimated_tokens(api_messages)
+            print(f"Estimated tokens to be sent: {estimated_tokens}")
+
+            # Give the user a chance to read their message and send or cancel.
+            options = [ f"Send to '{self.model}' assistant", "Cancel" ]
+            terminal_menu = TerminalMenu(options)
+            selected_option = terminal_menu.show()
+            if selected_option is None:
+                # Escape was pressed so do nothing.
+                confirm = 'cancel'
+                self.messages.pop()
+                return
+            else:
+                confirm = options[selected_option]
+            if confirm.lower() == 'cancel':
+                warn_message("Message canceled.")
+                self.messages.pop()
+                return
+
+        start_time = time.time()  # Start timing
+
+        if self.family == "openai":
+            assistant_response, tmp_cost = self._send_message_to_openai(api_messages)
+        elif self.family == "text-generation-webui":
+            assistant_response, tmp_cost = self._send_message_to_local_TGW(api_messages)
+        else:
+            print(f"Unsupported model family: {family}")
+            return
+
+        end_time = time.time()  # End timing
+
+        print()
+        dashes()
+        response_time = end_time - start_time
+        warn_message(f"Response time: {response_time:.2f} seconds")
+
+        info_message(f"{self.assistant_name}")
+        print(wrap_text(assistant_response))
+        self.messages.append({"role": "assistant",
+                 "content": assistant_response,
+                 "timestamp": self._get_timestamp(),
+                 "model": self.model,
+                 "response_seconds": round(response_time, 2),
+                 "cost_dollars": tmp_cost})
+
     def run_conversation(self):
         # Start an infinite loop to keep the conversation going
         while True:
@@ -614,9 +696,7 @@ class TermiChat:
                     print("Model not changed.")
                     continue
                 tmp_model = MODEL_MENU_ITEMS[options[selected_option]]
-                self.model, self.model_api_name, self.family = self._get_model_api_and_family(tmp_model)
-                self._inform_model_cost(self.model_api_name)
-                self.assistant_name, self.user_name = get_names_from_cli(self.model)
+                self.set_model(tmp_model)
 
             elif user_input.lower() == 'names':
                 tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
@@ -634,43 +714,19 @@ class TermiChat:
                 continue
 
             elif user_input.lower() == 'max':
-                if len(self.messages) < 2:
-                    print("No conversation context so max context cannot be changed.")
-                    continue
-                tmp_input = input(f"Enter the max context to use (blank = no change, max = {len(self.messages)-1}): ")
-                if len(tmp_input) > 0:
-                    try:
-                        tmp_max = int(tmp_input)
-                        if tmp_max >= len(self.messages):
-                            print(f"Invalid max context. Please enter a value less than {len(self.messages)}")
-                            continue
-                    except ValueError:
-                        print("Invalid max context. Please enter a valid integer.")
-                        continue
-                    self.max_context = tmp_max
-                    print(f"Max context changed to {self.max_context}.")
-                else:
-                    print(f"Max context not changed.")
+                self.set_max_context()
 
             elif user_input.lower() == 'view':
-                self._print_conversation()
+                self.view()
 
             elif user_input.lower() == 'clear':
-                # Just keep the system message and clear the rest.
-                self.messages = [{"role": "system", "content": self.messages[0]["content"], "timestamp": self._get_timestamp()}]
-                self.timestamps = [self._get_timestamp()]
-                print("Conversation context cleared. Starting over.")
+                self.clear()
 
             elif user_input.lower() == 'save':
                 tmpOutputFilename = input("Enter filename to save the context (enter means current one): ")
                 if tmpOutputFilename == "":
                     tmpOutputFilename = self.filename
-                self._save_to_file(self.filename, self.messages, tmpOutputFilename)
-                self.original_messages = json.dumps(self.messages)  # Update original state after saving
-                print(f"Context saved to {tmpOutputFilename}.")
-
-                # The new filename becomes the current filename for future saves.
-                self.filename = tmpOutputFilename
+                self.save(tmpOutputFilename)
 
             elif user_input.lower() == 'load':
                 if self.original_messages != json.dumps(self.messages):
@@ -722,53 +778,10 @@ class TermiChat:
                         print("No conversation context to send to the assistant.")
                         continue
                     print(f"Sending {ANSI_LIGHTBLUE}unchanged{ANSI_RESET} conversation context to {self.model} assistant...")
+                    self.send("", False)
                 else:
                     # Add the user's input to the messages
                     print(f"Sending conversation context to {self.model} assistant...")
-                    self.messages.append({"role": "user", "content": user_input, "timestamp": self._get_timestamp()})
+                    self.send(user_input, True)
 
-                api_messages = self._prepare_messages_for_api()
-
-                # Calculate tokens
-                estimated_tokens = self.get_estimated_tokens(api_messages)
-                print(f"Estimated tokens to be sent: {estimated_tokens}")
-
-                # Give the user a chance to read their message and send or cancel.
-                options = [ f"Send to '{self.model}' assistant", "Cancel" ]
-                terminal_menu = TerminalMenu(options)
-                selected_option = terminal_menu.show()
-                if selected_option is None:
-                    # Escape was pressed so do nothing.
-                    confirm = 'cancel'
-                else:
-                    confirm = options[selected_option]
-                if confirm.lower() == 'cancel':
-                    warn_message("Message canceled.")
-                    self.messages.pop()
-                    continue
-
-                start_time = time.time()  # Start timing
-
-                if self.family == "openai":
-                    assistant_response, tmp_cost = self.send_message_to_openai(api_messages)
-                elif self.family == "text-generation-webui":
-                    assistant_response, tmp_cost = self.send_message_to_local_TGW(api_messages)
-                else:
-                    print(f"Unsupported model family: {family}")
-                    exit(1)
-
-                end_time = time.time()  # End timing
-
-                print()
-                self._dashes()
-                response_time = end_time - start_time
-                warn_message(f"Response time: {response_time:.2f} seconds")
-
-                info_message(f"{self.assistant_name}")
-                print(self._wrap_text(assistant_response))
-                self.messages.append({"role": "assistant",
-                         "content": assistant_response,
-                         "timestamp": self._get_timestamp(),
-                         "model": self.model,
-                         "response_seconds": round(response_time, 2),
-                         "cost_dollars": tmp_cost})
+ 

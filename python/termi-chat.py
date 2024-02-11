@@ -20,5 +20,5 @@ if "--help" in sys.argv or "-h" in sys.argv:
     help_message()
     exit(0)
 
-instance = TermiChat(model, max_context, assistant_name, user_name, file_or_dir_from_cli)
+instance = TermiChat("Conversation1", model, max_context, assistant_name, user_name, file_or_dir_from_cli)
 instance.run_conversation()
