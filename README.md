@@ -225,6 +225,13 @@ podman run -it --rm \
 ### bugs
 
 * Software is still under test ...
+* I want to do this (test.json doesn't exist):
+
+```
+./python/termi-chat.py --model Cassie --load ~/Desktop/Dropbox/ShareOut/Redhat/termi-chats/test.json --names Cassie,Dennis
+```
+
+and then save to test.json ; this way, I can create new chats at will without creating files manually
 
 ### coding
 
