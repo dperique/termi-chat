@@ -16,8 +16,4 @@ echo "[
 
 echo "Starting termi-chat with the sample file ..."
 echo
-docker run -it --rm \
-    -v "./termi-chats:/termi-chats" \
-    -e OPENAI_API_KEY=${OPENAI_API_KEY} \
-	--net=host \
-    dperique/termi-chat:$(cat VERSION) --load /termi-chats/newfile.json --model Assistant --names "AI Assistant",Dennis
+./python/termi-chat.py --load termi-chats/newfile.json --model Assistant --names "AI Assistant",Dennis
