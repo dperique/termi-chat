@@ -406,7 +406,7 @@ class TermiChat:
             exit(1)
         return model_short_name, MODEL_INFO.get(model_short_name)["model_api_name"], MODEL_INFO.get(model_short_name)["model_family"]
 
-    def _send_message_to_openai(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+    def _send_message_to_openai(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float, str]:
         """Send a message to the OpenAI API and return the response.
 
            Args:
@@ -414,7 +414,7 @@ class TermiChat:
              These messages contain only what the api will accept.
 
            Returns:
-           - Tuple[str, float]: The response from the model and the cost of the request.
+           - Tuple[str, float]: The response from the model and the cost of the request and model name (openai).
              Returns an error string if there was a problem.
         """
 
@@ -457,19 +457,19 @@ class TermiChat:
             self._total_cost += total_for_both
             if total_for_both > 0.0:
                 warn_message(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
-            return response.choices[0].message.content, total_for_both
+            return response.choices[0].message.content, total_for_both, "openai"
         else:
             warn_message(f"\nRequest failed with unknown status code")
-            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0
+            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0, "Error"
 
-    def _send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
+    def _send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float, str]:
         """Send a message to the text-generation-webui in the background and return immediately.
 
             Args:
             - List[Dict[str, str]]: api_messages is a list of messages to send to the model.
               These messages contain only what the api will accept.
             - Returns:
-           - Tuple[str, float]: The response from the model and the cost of the request.
+           - Tuple[str, float]: The response from the model and the cost of the request, and model name from response.
              Returns an error string if there was a problem.
         """
 
@@ -511,7 +511,8 @@ class TermiChat:
             result = response.json()
 
             # Print the model so we know which one we're using
-            marker_message(f"\nmodel = {result['model']}")
+            response_model = result['model']
+            marker_message(f"\nmodel = {response_model}")
             cost_per_input_1k_tokens, cost_per_output_1k_tokens = self._get_model_cost_values(self.model_api_name)
 
             # Get the token counts.
@@ -526,12 +527,12 @@ class TermiChat:
             self._total_cost += total_for_both
             if total_for_both > 0.0:
                 warn_message(f"\nCost: ${cost_for_input:.4f} for input, ${cost_for_output:.4f} for output, total: ${total_for_both:.4f}")
-            return result["choices"][0]["message"]["content"], total_for_both
+            return result["choices"][0]["message"]["content"], total_for_both, response_model
         else:
             sys.stdout.flush()
             if response:
                 warn_message(f"Request failed with status code {response.status_code}: {response.text}")
-            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0
+            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0, "Error"
 
     def get_estimated_tokens(self, message_list: List[Dict[str, str]]) -> int:
         """ Get the estimated number of tokens for a list of messages."""
@@ -662,7 +663,7 @@ class TermiChat:
         if self.family == "openai":
             assistant_response, tmp_cost = self._send_message_to_openai(api_messages)
         elif self.family == "text-generation-webui":
-            assistant_response, tmp_cost = self._send_message_to_local_TGW(api_messages)
+            assistant_response, tmp_cost, tmp_response_model = self._send_message_to_local_TGW(api_messages)
         else:
             print(f"Unsupported model family: {family}")
             return
@@ -681,6 +682,7 @@ class TermiChat:
                  "timestamp": self._get_timestamp(),
                  "model": self.model,
                  "response_seconds": round(response_time, 2),
+                 "response_model": tmp_response_model,
                  "cost_dollars": tmp_cost})
 
     def run_conversation(self):

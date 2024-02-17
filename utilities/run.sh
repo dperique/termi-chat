@@ -12,7 +12,7 @@ echo "[
   \"role\": \"system\",
   \"content\": \"You are a helpful assistant; I am an inquisitive and happy software engineer asking question.\"
   }
-]" > termi-chats/newfile.json
+]" > ./termi-chats/newfile.json
 
 echo "Starting termi-chat with the sample file ..."
 echo
