@@ -193,6 +193,11 @@ class TermiChat:
         self.filename, self.messages, self.original_messages = self.check_load_file(file_or_dir_from_cli)
 
         self.model, self.model_api_name, self.family = self._get_model_api_and_family(model)
+        if self.filename == "":
+            # TODO: later, we'll be ok with this (we can detect if this is the first message
+            # later and if it is, we can call that the system prompt and not send it.
+            print("No conversation context loaded -- aborting.")
+            sys.exit(1)
         self._inform_model_cost(self.model_api_name)
 
     def _get_model_cost_values(self, model_api_name: str) -> Tuple[float, float]:
@@ -373,7 +378,7 @@ class TermiChat:
             except Exception as e:
                 print(f"Error loading file: {e}")
         else:
-            print("File does not exist.")
+            print(f"{filename_or_dir}: file or directory does not exist.")
         return "", [], None
 
     def _inform_model_cost(self, model: str) -> None:
@@ -455,7 +460,7 @@ class TermiChat:
             return response.choices[0].message.content, total_for_both
         else:
             warn_message(f"\nRequest failed with unknown status code")
-            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
+            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0
 
     def _send_message_to_local_TGW(self, api_messages: List[Dict[str, str]]) -> Tuple[str, float]:
         """Send a message to the text-generation-webui in the background and return immediately.
@@ -470,7 +475,12 @@ class TermiChat:
 
         # Today, we hardcode this until we can figure out how to load a specific
         # type of model and character.
-        url = "http://192.168.1.52:5089/v1/chat/completions"
+        #url = "http://192.168.1.52:5089/v1/chat/completions"
+
+        # For runpod.io, use something like this:
+        # Create a tunnel (where the pod IP = 207.189.112.60 and ssh port is 43919) like this:
+        #   ssh root@207.189.112.60 -L 5005:127.0.0.1:5000 -p 43919 -i ~/.ssh/id_rsa
+        url = "http://127.0.0.1:5005/v1/chat/completions"
         headers = {"Content-Type": "application/json"}
 
         data = {
@@ -521,7 +531,7 @@ class TermiChat:
             sys.stdout.flush()
             if response:
                 warn_message(f"Request failed with status code {response.status_code}: {response.text}")
-            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {model_api_name}: {str(response)}{ANSI_RESET}", 0.0
+            return f"{ANSI_BOLD}{ANSI_RED}Error talking to model {self.model_api_name}: response = {str(response)}{ANSI_RESET}", 0.0
 
     def get_estimated_tokens(self, message_list: List[Dict[str, str]]) -> int:
         """ Get the estimated number of tokens for a list of messages."""

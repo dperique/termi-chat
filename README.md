@@ -64,6 +64,40 @@ pip install openai
 conda env list
 ```
 
+### Setup local LLM server
+
+By default, the code looks for `http://localhost:5005` (or something similar).  You need something there to
+respond that can respond (e.g., via `curl`) to api requests where we pass the user's conversation/context.
+
+I use [text-generation-webui](https://github.com/oobabooga/text-generation-webui/tree/main).
+
+You can set this up manually or you can use [runpod.io](runpod.io) or any other service.  In runpod.io,
+use the `TheBloke Local LLMs One-Click UI and API` template and a GPU container that can run the model you
+want to load.  Set the `MODEL` environment variable to a huggingface model like `TheBloke/Wizard-Vicuna-7B-Uncensored-GPTQ`
+which will run comfortably on an RTX 3090 GPU (actually, it runs fine on my RTX 3060 but runpod.io no longer
+has these available).
+
+After the your runpod.io pod finishes coming up, make an ssh tunnel using a command like this:
+
+```
+ssh -L 5005:127.0.0.1:5000 root@x.x.x.x -p 14334 -i ~/.ssh/id_ed25519
+```
+
+The part that makes the tunnel is `-L 5005:127.0.0.1:5000`.  The rest is from the runpod.io UI.
+
+Test the tunnel to ensure it responds successfully like this:
+
+```
+$ nc -vz 127.0.0.1 5005
+Connection to 127.0.0.1 port 5005 [tcp/avt-profile-2] succeeded!
+```
+
+If you don't have `nc`, don't worry about it. You can test connectivity "in action" when you run termi-chat
+with your local model.
+
+NOTE: port 5005 is chosen arbitrarily.  You can pick any free port but you'll have to
+modify the line that says something like `url = "http://127.0.0.1:5005/v1/chat/completions"`.
+
 ### Running in a container
 
 If you want to run termi-chat in container, you'll need one of [podman](podman.io) or [docker](docker.com).
@@ -78,7 +112,7 @@ If you want to run termi-chat in container, you'll need one of [podman](podman.i
 * I purposely ask you to press `<ENTER>` to send the message.  This gives a final chance
   to see what you typed and how many tokens it will consume *before* sending it to the
   model.  Remember OpenAI charges by the token and if your context is too big, some of
-  it will be lost.  You can type `cancel` if you don't want to send the text and that
+  it will be lost.  You can type `cancel` if you don't want to send, and that
   text will be removed from the context.
 
 ### Suggested Workflow
@@ -116,20 +150,20 @@ If you want to run termi-chat in container, you'll need one of [podman](podman.i
     40 messages/per hour.  API usage and chatgpt webUI (plus accounts) are billed separately so API
     usage is not subject to usage caps.
 
+### Selecting a conversation
+
+Startup termi-chat.py without with --load option with a directory and you'll see a menu to
+select the conversation. Type `/` to start searching or up/down arrows to navigate.
+
 ### Changing the model
 
 Sometimes you're in a conversation with the more expensive gpt4 model and want to start asking
-questions about coding.  A lot of times, you don't need gpt4 for this.  So, save your work, quit
-and restart termi-chat with the gpt3.5 model using the `--load <conversation.json>` option to
-load your existing conversation in.  Now you can continue the conversation on the less expensive
-model.  Compare this with the ChatGPT webUI where you'd have to repeat your conversation when you
-switch models.
+questions about coding.  A lot of times, you don't need gpt4 for this.  You can change the model
+mid-conversation in one of two ways:
 
-
-### Example script to allow you to select conversations
-
-Since there's no webUI, you'll have to make up your own script to select conversations if you
-need this convenience.  The [select.sh](./utilities/select.sh) is an example.
+* save your work, quit, and restart termi-chat with the gpt3.5 model using the
+  `--load <conversation.json>` option to load your existing conversation in.
+* use control-D to get to the command pallete and change the model to a less expensive model.
 
 ## Convert ChatGPT UI conversations to saved context
 
@@ -141,7 +175,7 @@ These utilitiy scripts will extract the parts I do care about; one is in bash an
 * [chatgptui_to_simply.py](./utilities/chatgptui_to_simple.py)
 * [chatgptui_to_simply.sh](./utilities/chatgptui_to_simple.sh)
 
-NOTE: if you need to debug, the python script will be preferred.
+NOTE: The python version is preferred; if you need to debug, the python script will be preferred.
 
 The `chatgpt-exporter` will put a ChatGPT saved conversation (on the left side of the ChatGPT UI)
 in a json file named after the ChatGPT conversation title.  The converted file can be loaded
@@ -155,8 +189,8 @@ You can do this for any conversation and repeatedly for the same conversation as
 is updated.  This way, you don't have to worry about capturing only the new parts of the
 conversation.
 
-NOTE: keep these under source control so you can see that your changes are adding and not
-replacing text (if you care about that).  For example, you can do this:
+NOTE: keep these under source control so you can see that your changes are adding, and not
+replacing, text (if you care about that).  For example, you can do this:
 
 ```bash
 git init .
@@ -166,7 +200,7 @@ git commit -m 'initial'
 
 Then you can keep adding more files.  This is a private git repo you can store somewhere locally
 especially if you don't want to share the conversations or don't want them on github.com.  You
-will still get history and all github has to offer -- just locally.
+will still get history and all git has to offer -- just locally.
 
 ## Usage examples
 
@@ -212,6 +246,8 @@ podman run -it --rm \
     we can search for context and swap that in so that the context is smaller everytime we call the api -- maybe memgpt.
 * Add support for local LLM such that you can select the model by name instead of just whatever
   is currently running.
+  * [ollama](https://github.com/ollama/ollama/tree/main) might be the way to go here
+    * You can list (generate a menu for selection), select local models from a menu, etc.
 * When running with local LLM within the container, we cannot see the correct url from within the container
   (because containers have their own localhost).
 * Make a way to access http://localhost:5000 from within the container
@@ -231,9 +267,11 @@ podman run -it --rm \
 ./python/termi-chat.py --model Cassie --load ~/Desktop/Dropbox/ShareOut/Redhat/termi-chats/test.json --names Cassie,Dennis
 ```
 
-and then save to test.json ; this way, I can create new chats at will without creating files manually
+and then save to test.json ; this way, I can create new chats at will without creating files manually.
 
-### coding
+Workaround: use [run_container.sh](./utilities/run_container.sh) which creates a file for you.
+
+### Coding, Enhancements, etc.
 
 * add anthropic api support
 * fix the the TGW so that we use an api call instead of requests/curl style so I can
@@ -246,13 +284,23 @@ and then save to test.json ; this way, I can create new chats at will without cr
   with your chat updates, edit the json as you go; on the next submit, termi-chat reads the whole
   json.  termi-chat should validate the json first and recover if it's bad so the user can
   fix it without quitting.
+* If you use a directory that doesn't exist, or a file that doesn't exist, allow user to
+  start a conversationa nd then use the first message as the system prompt; then when the user
+  saves, they can specify a file.  Then we can do checking on the file to ensure it exists.
 
-### doc updates
 
-* Mention this command `$ cat dennis_azure_lb_and_vm.json |jq -r '.[3].content'` for accessing specific
-  info from a chat.
+### Tips
+
+* You can use `jq` to extract content from the conversation json files like this:
+
+```bash
+$ cat conversation.json |jq -r '.[3].content'`
+```
+
 
 ## Getting ollama to work
+
+These are notes from https://github.com/ollama/ollama/blob/main/docs/api.md:
 
 ### example curl
 

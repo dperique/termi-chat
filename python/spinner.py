@@ -30,7 +30,10 @@ class Spinner:
         sys.stdout.write("Waiting for response ")
 
         for _ in range(self.timeout * 10):
-            sys.stdout.write(next(spinner))
+            try:
+                sys.stdout.write(next(spinner))
+            except StopIteration:
+                sys.stdout.write("!")
             sys.stdout.flush()
 
             if self.response is not None:
