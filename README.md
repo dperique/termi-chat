@@ -14,9 +14,26 @@ app solves my particular style of use: speed, custom (editable) context, with
 conversations that can be saved and searched, plain text that can be easily
 manipulated.
 
+In this short demo below, keep in mind:
+
+* There is a python env (using conda, and called `termi-chat`) where `pip install -r requirements.txt` is already applied
+* Control-d is used so that you can have multi-line input; end your input by pressing Control-d on a blank line (edit your
+  line with the left/right arrow keys as you would in a bash prompt)
+* Control-d on a blank line, with no input, brings up the menu palette (that's where you can chose an LLM or get info on
+  the currently selected LLM (including description, context size, and cost))
+  * When on a menu chooser, search by typing `/` and then substring characters (similar to searching in vim)
+* My `OPENROUTER_API_KEY` is already defined
+* The conversation is viewed and saved at the end
+* The captured conversation is shown in the json file
+
+<div align="center">
+    <img src="doc/termi-chat-demo.gif" alt="termi-chat demo">
+</div>
+
 ## Requirements
 
 * Openai [API Key](https://platform.openai.com/api-keys) (if you are using OpenAI models).
+* Openrouter.ai [API Key](https://openrouter.ai/keys) (if you are using Openrouter.ai models).
 * Have [text-generation-webui](https://github.com/oobabooga/text-generation-webui) API up
   and running on port 5000 (if you are using local LLMs).  Characters have to be configured.
   On my local setup, I have `Cassie` and `Assistant`.
@@ -164,7 +181,7 @@ mid-conversation in one of two ways:
 
 * save your work, quit, and restart termi-chat with the gpt3.5 model using the
   `--load <conversation.json>` option to load your existing conversation in.
-* use control-D to get to the command pallete and change the model to a less expensive model.
+* use control-D to get to the command palette and change the model to a less expensive model.
 
 ## Convert ChatGPT UI conversations to saved context
 
@@ -249,15 +266,6 @@ podman run -it --rm \
   is currently running.
   * [ollama](https://github.com/ollama/ollama/tree/main) might be the way to go here
     * You can list (generate a menu for selection), select local models from a menu, etc.
-* When running with local LLM within the container, we cannot see the correct url from within the container
-  (because containers have their own localhost).
-* Make a way to access http://localhost:5000 from within the container
-  * We can use an outside address but add a `--host` option with 127.0.0.1 as default.
-* Make this a class, then you can instantiate multiple and in the text, you can use @conversation to send
-  text to a specific instance.  Then you can have two conversations.  You can then use two different models
-  at the same time so that you can get code snippet with gpt3.5 and more deep stuff with gpt4
-* Make it so that you can repeat the same context; this is in case you change the model and just want to
-  repeat using a different model.
 
 ### bugs
 
@@ -274,21 +282,11 @@ Workaround: use [run_container.sh](./utilities/run_container.sh) which creates a
 
 ### Coding, Enhancements, etc.
 
-* add anthropic api support
-* fix the the TGW so that we use an api call instead of requests/curl style so I can
-  specify the model
+* add anthropic api support (Anthropic (claude) LLMs are already in openrouter.ai)
 * allow a second LLM source so I can have two LLMs up and not have to wait for LLMs to load.
 * allow me to set the temperature and maybe max tokens on the replies
-* implement "save as you go" ; workflow: have the json in vscode, run the chat, the editor is updated
-  with your chat updates.
-* implement "load as you go" ; workflow: have the json in vscode, run the chat, the editor is updated
-  with your chat updates, edit the json as you go; on the next submit, termi-chat reads the whole
-  json.  termi-chat should validate the json first and recover if it's bad so the user can
-  fix it without quitting.
-* If you use a directory that doesn't exist, or a file that doesn't exist, allow user to
-  start a conversationa nd then use the first message as the system prompt; then when the user
-  saves, they can specify a file.  Then we can do checking on the file to ensure it exists.
-
+* add error checking on reponses from openrouter.ai (e.g., for checking rate limits, etc.)
+* add way to query openrouter.ai for credits and usage limits, etc.
 
 ### Tips
 
@@ -301,7 +299,8 @@ $ cat conversation.json |jq -r '.[3].content'`
 
 ## Getting ollama to work
 
-These are notes from https://github.com/ollama/ollama/blob/main/docs/api.md:
+These are notes from [ollama api docs](https://github.com/ollama/ollama/blob/main/docs/api.md) which can be used
+later for enhancements regarding ollama:
 
 ### example curl
 
@@ -314,7 +313,7 @@ $ curl http://localhost:11434/api/generate -d '{
 {"model":"llama2","created_at":"2024-02-06T21:57:46.258709647Z","response":"\nThe sky appears blue because of a phenomenon called Rayleigh scattering, which occurs when sunlight enters the Earth's atmosphere. The sunlight encounters tiny molecules of gases in the air, such as nitrogen and oxygen, which scatters the light in all directions.\n\nThe shorter wavelengths of light, such as blue and violet, a
 ```
 
-chat with history:
+Chat with history (termi-chat already does this so ollama support could just be a "drop in"):
 
 ```bash
 curl http://localhost:11434/api/chat -d '{
@@ -335,7 +334,11 @@ curl http://localhost:11434/api/chat -d '{
   ]
 }'
 ```
+
 ### requesting a new model
+
+Ollama allows switching models which might mean making a dynamic menu; this one switches
+to `llama2` but assumes that model is already available at the ollama instance:
 
 ```bash
 curl http://localhost:11434/api/generate -d '{
