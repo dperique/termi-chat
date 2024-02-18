@@ -236,6 +236,7 @@ podman run -it --rm \
 
 ## Todo
 
+* support openrouter.ai to allow a vast number of LLMs to choose from.
 * the context that keeps building will make our usage cost keep getting bigger
   * make some kind of pipeline that can prune out certain context we don't care to remember
     * like code -- no one needs to remember multiple versions of programs so prune these out.

@@ -664,6 +664,8 @@ class TermiChat:
             assistant_response, tmp_cost = self._send_message_to_openai(api_messages)
         elif self.family == "text-generation-webui":
             assistant_response, tmp_cost, tmp_response_model = self._send_message_to_local_TGW(api_messages)
+        elif self.family == "openrouter":
+            pass
         else:
             print(f"Unsupported model family: {family}")
             return

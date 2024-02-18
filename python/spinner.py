@@ -1,7 +1,7 @@
 """
 Spinner provides a way to run a function in a separate thread and display a
 spinner while waiting for the function to complete.  It doesn't spin, but,
-rahter, it shows lines across the screen to denote seconds passed.  This
+rather, it shows lines across the screen to denote seconds passed.  This
 allows the user to visually see how long something took relative to other
 things on the screen.
 """
