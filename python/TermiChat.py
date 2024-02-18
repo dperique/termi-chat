@@ -4,6 +4,7 @@ import os
 import sys
 import glob
 import requests
+import readline
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
