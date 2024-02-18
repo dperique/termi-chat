@@ -60,7 +60,7 @@ I use `conda` but you can use any python environment tool.
 ```bash
 conda create -n termi-chat python=3.11
 conda activate termi-chat
-pip install openai
+pip install -r requirements.txt
 conda env list
 ```
 
