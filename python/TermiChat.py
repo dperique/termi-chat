@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from openai import OpenAI
 from spinner import Spinner
+from ModelInfo import MODEL_INFO
 from simple_term_menu import TerminalMenu
 from tiktoken import encoding_for_model
 from utils import marker_message, warn_message, info_message, dashes, wrap_text, ANSI_BOLD, ANSI_YELLOW, ANSI_GREEN, ANSI_LIGHTBLUE, ANSI_RED, ANSI_RESET
@@ -18,35 +19,6 @@ TOKEN_ENCODING = encoding_for_model("text-davinci-003")
 # When you add a new model, add it to the MODEL_INFO dictionary.
 # See https://openai.com/pricing#language-models for pricing.
 # The first model is the default.
-MODEL_INFO = {
-    "gpt3.5": {
-        # 16K context, optimized for dialog
-        "model_api_name": "gpt-3.5-turbo-0125",
-        "model_family": "openai",
-        "cost_input": 0.0005,
-        "cost_output": 0.0015
-    },
-    "gpt4": {
-        "model_api_name": "gpt-4-0613",
-        "model_family": "openai",
-        "cost_input": 0.01,
-        "cost_output": 0.03
-    },
-    "Cassie": {
-        # 4K context using whatever is running on the text-generation-webui
-        "model_api_name": "Cassie",
-        "model_family": "text-generation-webui",
-        "cost_input": 0.01,
-        "cost_output": 0.03
-    },
-    "Assistant": {
-        # 4K context using whatever is running on the text-generation-webui
-        "model_api_name": "Assistant",
-        "model_family": "text-generation-webui",
-        "cost_input": 0.0,
-        "cost_output": 0.0
-    }
-}
 
 # Used for things that need all models.
 MODEL_LIST_AS_STRING = ", ".join(MODEL_INFO.keys())
@@ -661,7 +633,7 @@ class TermiChat:
         start_time = time.time()  # Start timing
 
         if self.family == "openai":
-            assistant_response, tmp_cost = self._send_message_to_openai(api_messages)
+            assistant_response, tmp_cost, tmp_response_model = self._send_message_to_openai(api_messages)
         elif self.family == "text-generation-webui":
             assistant_response, tmp_cost, tmp_response_model = self._send_message_to_local_TGW(api_messages)
         elif self.family == "openrouter":
