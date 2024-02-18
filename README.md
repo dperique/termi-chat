@@ -36,6 +36,7 @@ manipulated.
   * Use the "resend" command to just resend your current conversation (this allows you
     to try what you just asked to a different model).
 * Costs are tracked and shown in real-time so you know much you've spent.
+* Now supports models hosted on [openrouter.ai](openrouter.ai).  That's a lot of models!
 * Save and load your conversation so you can have a longer term conversation
   * Conversations are simple json so you can add/remove to/from more easily
   * Conversations are plain text which means you can archive and search them
@@ -236,7 +237,6 @@ podman run -it --rm \
 
 ## Todo
 
-* support openrouter.ai to allow a vast number of LLMs to choose from.
 * the context that keeps building will make our usage cost keep getting bigger
   * make some kind of pipeline that can prune out certain context we don't care to remember
     * like code -- no one needs to remember multiple versions of programs so prune these out.

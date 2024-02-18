@@ -11,7 +11,7 @@ from spinner import Spinner
 from ModelInfo import MODEL_INFO
 from simple_term_menu import TerminalMenu
 from tiktoken import encoding_for_model
-from utils import marker_message, warn_message, info_message, dashes, wrap_text, ANSI_BOLD, ANSI_YELLOW, ANSI_GREEN, ANSI_LIGHTBLUE, ANSI_RED, ANSI_RESET
+from utils import get_model_info, marker_message, warn_message, info_message, dashes, wrap_text, ANSI_BOLD, ANSI_YELLOW, ANSI_GREEN, ANSI_LIGHTBLUE, ANSI_RED, ANSI_RESET
 
 # Used for counting tokens
 TOKEN_ENCODING = encoding_for_model("text-davinci-003")
@@ -36,6 +36,7 @@ MENU_ITEMS = {
     "[l] load    - Load conversation context": "load",
     "[m] max     - Set max back context": "max",
     "[o] model   - Choose a different model": "model",
+    "[i] info    - Show model info": "info",
     "[n] names   - Choose different names for the assistant and user": "names",
     "[s] save    - Save conversation context": "save",
     "[r] resend  - Resend the current context (with no new input)": "resend",
@@ -45,12 +46,15 @@ MENU_ITEMS = {
 }
 
 # The second one is the model "short" name which should match the keys in MODEL_INFO.
-MODEL_MENU_ITEMS = {
-    "[3] GPT-3.5": "gpt3.5",
-    "[4] GPT-4": "gpt4",
-    "[c] Cassie (local)": "Cassie",
-    "[a] Assistant (local)": "Assistant"
-}
+# MODEL_MENU_ITEMS = {
+#     "[3] GPT-3.5": "gpt3.5",
+#     "[4] GPT-4": "gpt4",
+#     "[c] Cassie (local)": "Cassie",
+#     "[a] Assistant (local)": "Assistant"
+# }
+
+# Set MODEL_MENU_ITEMS to a dict that maps MODEL_INFO keys to model_api_name values.
+MODEL_MENU_ITEMS = {model: MODEL_INFO[model]["model_api_name"] for model in MODEL_INFO}
 
 def get_file_or_dir_from_cli() -> str:
     """Check and return the file or directory specified in command line arguments.
@@ -155,6 +159,9 @@ class TermiChat:
         # local model.
         self._openaiClient = None
 
+        # Openrouter client is similar to OpenAI client.
+        self._openrouterClient = None
+
         # The total accumulated cost for the conversation(s)
         self._total_cost = 0.0
 
@@ -214,7 +221,10 @@ class TermiChat:
         if loaded_filename:
             # If we had a dir/filename passed, we'll use that for where to output the file.
             directory = os.path.dirname(loaded_filename)
-            filename = os.path.join(directory, filename)
+
+            # If filename doesn't have a directory, we'll use the directory from the loaded_filename
+            if not os.path.dirname(filename):
+                filename = os.path.join(directory, filename)
         else:
             # The default dir for the files.
             filename = os.path.join("/", DEFAULT_TERMI_CHAT_DIRNAME, filename)
@@ -284,7 +294,13 @@ class TermiChat:
 
         if self.max_context == 0:
             return [{"role": self.messages[0]["role"], "content": self.messages[0]["content"]}]
-        return [{"role": msg["role"], "content": msg["content"]} for msg in [self.messages[0]] + self.messages[-self.max_context:]]
+
+        # calculate the 0th message plus messages 1-n upto max_context messages.
+        ret_messasges = [self.messages[0]]
+        for i, message in enumerate(self.messages[1:]):
+            if i < self.max_context:
+                ret_messasges.append(message)
+        return ret_messasges
 
     def _load_json_file(self, filename: str) -> Tuple[str, List[Dict[str, str]], str]:
         """
@@ -373,6 +389,11 @@ class TermiChat:
         - The model's api name if supported, None otherwise.
         - The model family if supported, None otherwise.
         """
+        if ("openrouter.ai/" + model_short_name) in MODEL_LIST:
+            # The shortnames had openrouter.ai prepended to them so we could
+            # easily search for them when selecting the model.
+            model_short_name = "openrouter.ai/" + model_short_name
+            return model_short_name, MODEL_INFO.get(model_short_name)["model_api_name"], MODEL_INFO.get(model_short_name)["model_family"]
         if model_short_name not in MODEL_LIST:
             print(f"Unsupported model: {model_short_name}; valid modes: {MODEL_LIST_AS_STRING}")
             exit(1)
@@ -394,16 +415,38 @@ class TermiChat:
 
         def send_request():
             nonlocal spinner
-            if self._openaiClient is None:
-                # Initialize the OpenAI client
-                self._openaiClient = OpenAI()
-            try:
-                spinner.set_response(self._openaiClient.chat.completions.create(
-                    model=self.model_api_name,
-                    messages=api_messages
-                ))
-            except Exception as e:
-                print(f"Error: {e}")
+            if self.family == "openrouter.ai":
+                # Initialize the Openrouter client
+                if self._openrouterClient is None:
+                    key = os.environ["OPENROUTER_API_KEY"]
+                    self._openrouterClient = OpenAI(
+                      base_url="https://openrouter.ai/api/v1",
+                      api_key=key
+                    )
+                try:
+                    spinner.set_response(self._openrouterClient.chat.completions.create(
+                        extra_headers={
+                            "HTTP-Referer": "termi-chat",
+                            "X-Title": "termi-chat"
+                        },
+                        model=self.model_api_name,
+                        messages=api_messages
+                    ))
+                except Exception as e:
+                    print(f"Error: {e}")
+            elif self.family == "openai":
+                if self._openaiClient is None:
+                    # Initialize the OpenAI client
+                    self._openaiClient = OpenAI()
+                try:
+                    spinner.set_response(self._openaiClient.chat.completions.create(
+                        model=self.model_api_name,
+                        messages=api_messages
+                    ))
+                except Exception as e:
+                    print(f"Error: {e}")
+            else:
+                print(f"Unsupported model when trying to send: {self.model_api_name}")
 
         spinner.start(send_request)
 
@@ -632,12 +675,10 @@ class TermiChat:
 
         start_time = time.time()  # Start timing
 
-        if self.family == "openai":
+        if self.family == "openai" or self.family == "openrouter.ai":
             assistant_response, tmp_cost, tmp_response_model = self._send_message_to_openai(api_messages)
         elif self.family == "text-generation-webui":
             assistant_response, tmp_cost, tmp_response_model = self._send_message_to_local_TGW(api_messages)
-        elif self.family == "openrouter":
-            pass
         else:
             print(f"Unsupported model family: {family}")
             return
@@ -655,6 +696,7 @@ class TermiChat:
                  "content": assistant_response,
                  "timestamp": self._get_timestamp(),
                  "model": self.model,
+                 "family": self.family,
                  "response_seconds": round(response_time, 2),
                  "response_model": tmp_response_model,
                  "cost_dollars": tmp_cost})
@@ -683,6 +725,12 @@ class TermiChat:
                     continue
                 tmp_model = MODEL_MENU_ITEMS[options[selected_option]]
                 self.set_model(tmp_model)
+
+            elif user_input.lower() == 'info':
+                tmp_info = get_model_info(self.model_api_name)
+                print()
+                print(tmp_info)
+                print()
 
             elif user_input.lower() == 'names':
                 tmp_input = input(f"Enter the assistant name (blank = no change, default = {assistant_name}): ")
