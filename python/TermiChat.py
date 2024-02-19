@@ -282,6 +282,12 @@ class TermiChat:
         marker_message("Processing ...")
         return '\n'.join(lines)
 
+    def _message_strip(self, message: Dict[str, str]) -> Dict[str, str]:
+        """Strip off all but the role and content of the given message (message
+        is a dict of [role:x, content:x, model:x, reponse_cost:x ...] where
+        role and content are strings.  Our LLM only wants role and content."""
+        return {"role": message["role"], "content": message["content"]}
+
     def _prepare_messages_for_api(self) -> List[Dict[str, str]]:
         """Prepare messages for the API by extracting only what the api needs
         and limit messages to the first message (the system prompt) plus the
@@ -294,13 +300,13 @@ class TermiChat:
         # Limit messages to the first message plus the last n=max_context messages
 
         if self.max_context == 0:
-            return [{"role": self.messages[0]["role"], "content": self.messages[0]["content"]}]
+            return [self._message_strip(self.messages[0])]
 
         # calculate the 0th message plus messages 1-n upto max_context messages.
-        ret_messasges = [self.messages[0]]
+        ret_messasges = [self._message_strip(self.messages[0])]
         for i, message in enumerate(self.messages[1:]):
             if i < self.max_context:
-                ret_messasges.append(message)
+                ret_messasges.append(self._message_strip(message))
         return ret_messasges
 
     def _load_json_file(self, filename: str) -> Tuple[str, List[Dict[str, str]], str]:
@@ -462,6 +468,8 @@ class TermiChat:
         # OpenAI has no status code -- so if we get a response, we assume 200 OK.
         # See https://community.openai.com/t/http-status-for-chat-completion/541491
         if response:
+            print()
+            print(f"response = {response}")
             cost_per_input_1k_tokens, cost_per_output_1k_tokens = self._get_model_cost_values(self.model_api_name)
             input_tokens = response.usage.prompt_tokens
             output_tokens = response.usage.completion_tokens
@@ -813,7 +821,7 @@ class TermiChat:
                         print("No conversation context to send to the assistant.")
                         continue
                     print(f"Sending {ANSI_LIGHTBLUE}unchanged{ANSI_RESET} conversation context to {self.model} assistant...")
-                    self.send("", False)
+                    self.send("", True)
                 else:
                     # Add the user's input to the messages
                     print(f"Sending conversation context to {self.model} assistant...")
