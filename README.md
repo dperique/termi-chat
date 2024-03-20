@@ -287,6 +287,7 @@ Workaround: use [run_container.sh](./utilities/run_container.sh) which creates a
 * allow me to set the temperature and maybe max tokens on the replies
 * add error checking on reponses from openrouter.ai (e.g., for checking rate limits, etc.)
 * add way to query openrouter.ai for credits and usage limits, etc.
+* use https://click.palletsprojects.com/en/8.1.x/ for command line options
 
 ### Tips
 
