@@ -713,7 +713,7 @@ class TermiChat:
     def run_conversation(self):
         # Start an infinite loop to keep the conversation going
         while True:
-            user_input = self._get_multiline_input("\nEnter your command (type 'help' for options), or your conversation text:")
+            user_input = self._get_multiline_input("\nEnter your command (type control-d for options), or your conversation text:")
 
             if user_input.lower() == 'm' or user_input.lower() == 'menu' or user_input.lower() == '':
                 options = list(MENU_ITEMS.keys())
