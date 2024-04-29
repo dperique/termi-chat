@@ -62,6 +62,8 @@ In this short demo below, keep in mind:
   * Gives a good way to organize and re-use your conversations.
 * use the `max` command to use only the last `n` messages for the context (reduces token count).
 * Tracks model used, response times, and cost of api calls in the saved json.
+* A [Streamlit-based version (work in progress)](./python/sl_TermChat.py)
+  * If you really want a UI, use an instance this per conversation
 
 
 ## Limitations
