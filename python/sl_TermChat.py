@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+from datetime import datetime
 import openai
 import streamlit as st
 from streamlit_chat import message
@@ -158,7 +159,7 @@ if uploaded_file != None and uploaded_file != st.session_state['uploaded_file']:
     st.session_state['uploaded_file_key'] += 1
     st.rerun()
 
-print("running")
+#print("running")
 if refresh_button:
     print("")
 if dump_button:
@@ -192,6 +193,7 @@ def ollama_generate_response(model, messages):
             model=model,
             messages=messages
         )
+        #print(f"Completion: {completion}")
         response = completion['message']['content'].strip()
     except Exception as e:
         error_text = f"Error in ollama server: Error: {str(e)}"
@@ -241,7 +243,7 @@ prompt_container = st.container()
 
 with prompt_container:
     with st.form(key='my_form', clear_on_submit=True):
-        user_input = st.text_area(f"{users_name}:", key='input', height=300)
+        user_input = st.text_area(f"{users_name}:", key='input', height=200)
         submit_button = st.form_submit_button(label='Send')
         add_keyboard_shortcuts({'Shift+Enter': submit_button})
 
@@ -263,11 +265,6 @@ with prompt_container:
         st.session_state['model_name'].append(model_name)
         st.session_state['total_tokens'].append(total_tokens)
 
-        # Only after we successfully get a response do we update the messages with
-        # both user and assistant messages.
-        st.session_state['messages'].append({"role": "user", "content": user_input})
-        st.session_state['messages'].append({"role": "assistant", "content": output})
-
         # see https://openai.com/pricing#language-models
         # for other models (like ollama based), we don't update cost.
         if model_name == "gpt-3.5-turbo":
@@ -276,6 +273,14 @@ with prompt_container:
             cost = (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
         else:
             cost = 0.0
+
+        # Only after we successfully get a response do we update the messages with
+        # both user and assistant messages.
+        st.session_state['messages'].append({"role": "user", "content": user_input})
+        st.session_state['messages'].append({"role": "assistant", "content": output,
+                                             "timestamp": datetime.now().strftime("%Y-%m-%d-%H:%M"),
+                                             "model": model,
+                                             "cost": cost })
 
         st.session_state['cost'].append(cost)
         st.session_state['total_cost'] += cost
