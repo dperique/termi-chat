@@ -69,7 +69,7 @@ if 'total_cost' not in st.session_state:
 
 # All of these are from a locally running ollama plus gpt3.5 and gpt4
 # The "test" model is for error testing
-models = ["llama3:8b", "deepseek-coder:6.7b", "llama2-uncensored:7b", "dolphin-mixtral:8x7b-v2.7-q4_K_M", "test", "gpt-3.5-turbo", "gpt-4"]
+models = ["llama3:8b", "deepseek-coder:6.7b", "llama2-uncensored:7b", "dolphin-mixtral:8x7b-v2.7-q4_K_M", "test", "gpt-3.5-turbo", "gpt-4", "neversleep/llama-3-lumimaid-8b"]
 
 # Sidebar - used to show the conversation title and model selection
 with st.sidebar:
@@ -207,7 +207,14 @@ def ollama_generate_response(model, messages):
 def generate_response(model, messages):
 
     from openai import OpenAI
-    client = OpenAI()
+    from os import getenv
+
+    if model == "neversleep/llama-3-lumimaid-8b":
+        base_url = "https://openrouter.ai/api/v1"
+        api_key=getenv("OPENROUTER_API_KEY")
+        client = OpenAI(base_url=base_url, api_key=api_key)
+    else:
+        client = OpenAI()
 
     try:
         completion = client.chat.completions.create(
@@ -216,9 +223,9 @@ def generate_response(model, messages):
         )
         response = completion.choices[0].message.content.strip('\n')
     except Exception as e:
-        error_text = f"Error in openai server: Error: {str(e)}"
+        error_text = f"Error in openai server: Error: {str(e)} completion: {completion}"
         response = error_text
-        print(response)
+        print(f"{response}")
         return response, 0,0,0
 
     total_tokens = completion.usage.total_tokens
@@ -247,7 +254,7 @@ with prompt_container:
 
         # During inference, the user can click buttons which will abort the inference.
         with st.spinner("Thinking..."):
-            if "gpt" in model.lower():
+            if "gpt" in model.lower() or "neversleep" in model.lower():
                 output, total_tokens, prompt_tokens, completion_tokens = generate_response(model, tmp_messages)
             else:
                 output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(model, tmp_messages)
