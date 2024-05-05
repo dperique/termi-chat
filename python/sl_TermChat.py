@@ -20,7 +20,7 @@ if len(sys.argv) > 1:
 # Setting page title and header and allow wide mode (so you can widen your browser
 # to see the chat history better).
 st.set_page_config(page_title=chat_title, layout="wide", page_icon=":robot_face:")
-st.markdown("<h2 style='text-align: center;'>Termi-chat 🔥</h2>", unsafe_allow_html=True)
+st.header(f"Termi-chat 🔥: {chat_title}")
 
 # Get this from .streamlit/secrets.toml
 #   OPENAI_API_KEY = "..."
@@ -86,7 +86,7 @@ model_map = { "llama3:8b": "ollama",
            "test": "ollama",
            "gpt-3.5-turbo": "openai",
            "gpt-4": "openai",
-           "neversleep/llama-3-lumimaid-8b": "openrouter" }
+           "mistralai/mixtral-8x7b-instruct": "openrouter"}
 
 def calculate_cost(prompt_tokens, completion_tokens, model_name):
     # see https://openai.com/pricing#language-models
@@ -97,8 +97,8 @@ def calculate_cost(prompt_tokens, completion_tokens, model_name):
         cost = total_tokens * 0.002 / 1000
     elif model_name == "gpt-4":
         cost = (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
-    elif model_name == "neversleep/llama-3-lumimaid-8b":
-        cost = (prompt_tokens * 0.225 + completion_tokens * 2.25) / 1000000
+    elif model_name == "mistralai/mixtral-8x7b-instruct":
+        cost = (prompt_tokens * 0.24 + completion_tokens * .24) / 1000000
     return cost
 
 # Sidebar - used to show the conversation title and model selection
