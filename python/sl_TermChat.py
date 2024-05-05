@@ -235,11 +235,12 @@ def ollama_generate_response(model, messages):
     except Exception as e:
         error_text = f"Error in ollama server: Error: {str(e)}"
         response = error_text
-        print(response)
+        #print(response)
 
-    total_tokens = 0
-    prompt_tokens = 0
-    completion_tokens = 0
+    prompt_tokens = completion['eval_count']
+    completion_tokens = completion['prompt_eval_count']
+    total_tokens = prompt_tokens + completion_tokens
+
     return response, total_tokens, prompt_tokens, completion_tokens
 
 # Get responses from chatgpt; cost is based on tokens and model type
@@ -344,7 +345,8 @@ if st.session_state['assistant']:
                 with st.chat_message('assistant', avatar='https://raw.githubusercontent.com/dataprofessor/streamlit-chat-avatar/master/bot-icon.png'):
                      st.write(st.session_state['assistant'][i])
             if model_map[st.session_state['model_name'][i]] == "openai" or \
-               model_map[st.session_state['model_name'][i]] == "openrouter":
+               model_map[st.session_state['model_name'][i]] == "openrouter" or \
+               model_map[st.session_state['model_name'][i]] == "ollama":
                 st.write(
                     f"Model: {st.session_state['model_name'][i]}; Tokens: {st.session_state['total_tokens'][i]}; Cost: ${st.session_state['cost'][i]:.5f}")
                 counter_placeholder.write(f"Total cost of conversation: ${st.session_state['total_cost']:.5f}")
