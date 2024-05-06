@@ -76,6 +76,8 @@ if 'total_cost' not in st.session_state:
 # The "test" model is for error testing
 # For paid models, we track the cost of the conversation so add code below
 # to calculate cost and a comment to the link to the pricing page.
+# IMPORTANT: the paid models need to show up here and in the calculate_cost function.
+# If it doesn't, the cost will be $0 -- and will not let you know you're spending money.
 model_map = { "llama3:8b": "ollama",
            "deepseek-coder:6.7b": "ollama",
            "llama2-uncensored:7b": "ollama",
@@ -83,22 +85,29 @@ model_map = { "llama3:8b": "ollama",
            "dolphin-mixtral:8x7b-v2.7-q4_K_M": "ollama",
            "codellama:13b-python-q4_K_M": "ollama",
            "llama3-gradient:8b": "ollama",
-           "test": "ollama",
-           "gpt-3.5-turbo": "openai",
-           "gpt-4": "openai",
-           "mistralai/mixtral-8x7b-instruct": "openrouter"}
+           "--- Below spends Money ---": "ollama",
+           "gpt-3.5-turbo-0125": "openai",
+           "gpt-4-turbo-2024-04-09": "openai",
+           "mistralai/mixtral-8x7b-instruct": "openrouter",
+           "openai/gpt-3.5-turbo-0125": "openrouter",
+           "anthropic/claude-3-haiku": "openrouter",
+           }
 
 def calculate_cost(prompt_tokens, completion_tokens, model_name):
     # see https://openai.com/pricing#language-models
     # see https://openrouter.ai/models (cost is differet for each model)
     # for other models (like ollama based), we don't update cost.
     cost = 0.0
-    if model_name == "gpt-3.5-turbo":
-        cost = total_tokens * 0.002 / 1000
-    elif model_name == "gpt-4":
-        cost = (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
+    if model_name == "gpt-3.5-turbo-0125":
+        cost = (prompt_tokens * 0.50 + completion_tokens * 1.50) / 1000000
+    elif model_name == "gpt-4-turbo-2024-04-09":
+        cost = (prompt_tokens * 10.00 + completion_tokens * 30.00) / 1000000
     elif model_name == "mistralai/mixtral-8x7b-instruct":
         cost = (prompt_tokens * 0.24 + completion_tokens * .24) / 1000000
+    elif model_name == "openai/gpt-3.5-turbo-0125":
+        cost = (prompt_tokens * 0.50 + completion_tokens * 1.50) / 1000000
+    elif model_name == "anthropic/claude-3-haiku":
+        cost = (prompt_tokens * 0.25 + completion_tokens * 1.25) / 1000000
     return cost
 
 # Sidebar - used to show the conversation title and model selection
