@@ -109,7 +109,7 @@ def calculate_cost(prompt_tokens, completion_tokens, model_name):
         output_token_cost = model_map[model_name].get("output_token_cost", 0)
         cost = (prompt_tokens * input_token_cost + completion_tokens * output_token_cost) / 1000000
     else:
-        print(f"Model {model_name} not found in our list")
+        print(f"Model {model_name} not found in our model_map cost list")
         return f"cost is invalid for this model: {model_name}"
     return cost
 
@@ -275,11 +275,19 @@ def generate_response(model, max_tokens, messages):
         base_url = "https://openrouter.ai/api/v1"
         api_key=getenv("OPENROUTER_API_KEY")
         client = OpenAI(base_url=base_url, api_key=api_key)
+
+    elif model_map[model]['vendor'] == "deepseek":
+
+        # Deepseek models can use the OpenAI API but we need their base URL and API key
+        base_url = "https://api.deepseek.com/"
+        api_key=getenv("DEEPSEEK_API_KEY")
+        client = OpenAI(base_url=base_url, api_key=api_key)
+
     elif model_map[model]['vendor'] == "openai":
         api_key = getenv("OPENAI_API_KEY")
         client = OpenAI(api_key=api_key)
     else:
-        response = f"Error: model {model} not found in our list"
+        response = f"Error: model {model} not found in our model_map list"
         return response, 0, 0, 0
 
     try:
@@ -321,7 +329,9 @@ with prompt_container:
 
         # During inference, the user can click buttons which will abort the inference.
         with st.spinner("Thinking..."):
-            if model_map[selected_model_name]['vendor'] == "openai" or model_map[selected_model_name]['vendor'] == "openrouter":
+            if model_map[selected_model_name]['vendor'] == "openai" or \
+                model_map[selected_model_name]['vendor'] == "openrouter" or \
+                model_map[selected_model_name]['vendor'] == "deepseek":
                 output, total_tokens, prompt_tokens, completion_tokens = generate_response(selected_model_name, max_tokens, tmp_messages)
             elif model_map[selected_model_name]['vendor'] == "ollama":
                 output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(selected_model_name, max_tokens, tmp_messages)
