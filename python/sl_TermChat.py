@@ -60,6 +60,9 @@ if 'uploaded_file_key' not in st.session_state:
 if 'file_name' not in st.session_state:
     st.session_state['file_name'] = "termi-chat1.json"
 
+if 'timestmp' not in st.session_state:
+    st.session_state['timestamp'] = []
+
 # These 3 track cost for paid models to help the user now what they're spending
 if 'cost' not in st.session_state:
     st.session_state['cost'] = []
@@ -85,7 +88,7 @@ max_tokens = 512
 # see https://openrouter.ai/models (cost is differet for each model)
 # for other models (like ollama based), we don't update cost.
 model_map = {
-    "llama3:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "llama3:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "deepseek-coder:6.7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "llama2-uncensored:7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "wizard-vicuna-uncensored:13b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
@@ -185,6 +188,12 @@ if uploaded_file != None and uploaded_file != st.session_state['uploaded_file']:
     st.session_state['messages'].append({"role": "system", "content": system_context})
     for msg in new_messages:
         st.session_state['messages'].append(msg)
+        if msg['role'] == "assistant":
+            # Protect against missing fields in the JSON file
+            st.session_state['model_name'].append(msg.get('model', "None"))
+            st.session_state['total_tokens'].append(msg.get('total_tokens', 0.0))
+            st.session_state['cost'].append(msg.get('cost', 0.0))
+            st.session_state['timestamp'].append(msg.get('timestamp', "2024-09-09-09:09"))
 
     st.session_state['system_context'] = system_context
     print(f"Loaded conversation: {uploaded_file.name}")
@@ -227,7 +236,7 @@ if clear_button:
     st.session_state['cost'] = []
     st.session_state['total_cost'] = 0.0
     st.session_state['total_tokens'] = []
-    counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
+    #counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
 
 # Take a list of messages and strip anything but role and content
 # because the api calls only want role and content.
