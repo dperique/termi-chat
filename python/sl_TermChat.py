@@ -68,6 +68,10 @@ if 'total_tokens' not in st.session_state:
 if 'total_cost' not in st.session_state:
     st.session_state['total_cost'] = 0.0
 
+# Use a reasonable start value for max_tokens; the user can change it
+# using the slider.
+max_tokens = 512
+
 # We use a map for the model name and the API type.  This is so we can
 # use the correct API for the model.  We have 3 types of models:
 # 1. ollama - a locally running model
@@ -78,20 +82,21 @@ if 'total_cost' not in st.session_state:
 # to calculate cost and a comment to the link to the pricing page.
 # IMPORTANT: the paid models need to show up here and in the calculate_cost function.
 # If it doesn't, the cost will be $0 -- and will not let you know you're spending money.
-model_map = { "llama3:8b": "ollama",
-           "deepseek-coder:6.7b": "ollama",
-           "llama2-uncensored:7b": "ollama",
-           "wizard-vicuna-uncensored:13b": "ollama",
-           "dolphin-mixtral:8x7b-v2.7-q4_K_M": "ollama",
-           "codellama:13b-python-q4_K_M": "ollama",
-           "llama3-gradient:8b": "ollama",
-           "--- Below spends Money ---": "ollama",
-           "gpt-3.5-turbo-0125": "openai",
-           "gpt-4-turbo-2024-04-09": "openai",
-           "mistralai/mixtral-8x7b-instruct": "openrouter",
-           "openai/gpt-3.5-turbo-0125": "openrouter",
-           "anthropic/claude-3-haiku": "openrouter",
-           }
+model_map = {
+    "llama3:8b": {"vendor": "ollama", "context_size": 4096},
+    "deepseek-coder:6.7b": {"vendor": "ollama", "context_size": 4096},
+    "llama2-uncensored:7b": {"vendor": "ollama", "context_size": 4096},
+    "wizard-vicuna-uncensored:13b": {"vendor": "ollama", "context_size": 4096},
+    "dolphin-mixtral:8x7b-v2.7-q4_K_M": {"vendor": "ollama", "context_size": 4096},
+    "codellama:13b-python-q4_K_M": {"vendor": "ollama", "context_size": 4096},
+    "llama3-gradient:8b": {"vendor": "ollama", "context_size": 4096},
+    "--- Below spends Money ---": "ollama",
+    "gpt-3.5-turbo-0125": {"vendor": "openai", "context_size": 16384},
+    "gpt-4-turbo-2024-04-09": {"vendor": "openai", "context_size": 128000},
+    "mistralai/mixtral-8x7b-instruct": {"vendor": "openrouter", "context_size": 32768},
+    "openai/gpt-3.5-turbo-0125": {"vendor": "openrouter", "context_size": 16384},
+    "anthropic/claude-3-haiku": {"vendor": "openrouter", "context_size": 200000},
+}
 
 def calculate_cost(prompt_tokens, completion_tokens, model_name):
     # see https://openai.com/pricing#language-models
@@ -118,6 +123,11 @@ with st.sidebar:
     # Create the model selector based on the keys of models_map.
     model_menu_items = list(model_map.keys())
     selected_model_name = st.radio("Choose a model:", model_menu_items)
+    if model_map[selected_model_name]['vendor'] == "openai" or \
+        model_map[selected_model_name]['vendor'] == "openrouter":
+        max_tokens = st.slider("Max tokens", min_value=20,
+                                             max_value=model_map[selected_model_name]['context_size'],
+                                             value=512, step=1)
     counter_placeholder = st.empty()
     counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
     uploaded_file = st.file_uploader("Load Conversation", type="json", key=f"load{st.session_state['uploaded_file_key']}", help="Load a conversation from a JSON file")
@@ -229,7 +239,8 @@ def extract_role_and_content(input_messages):
     return messages
 
 # Get responses from ollama models.  Cost = $0
-def ollama_generate_response(model, messages):
+# Sadly, ollma api doesn't support max_tokens so we can't use it.
+def ollama_generate_response(model, max_tokens, messages):
 
     from ollama import Client
     client = Client(host='http://localhost:11434')
@@ -239,12 +250,11 @@ def ollama_generate_response(model, messages):
             model=model,
             messages=messages
         )
-        #print(f"Completion: {completion}")
         response = completion['message']['content'].strip()
     except Exception as e:
         error_text = f"Error in ollama server: Error: {str(e)}"
         response = error_text
-        #print(response)
+        return response, 0, 0, 0
 
     prompt_tokens = completion['eval_count']
     completion_tokens = completion['prompt_eval_count']
@@ -255,18 +265,18 @@ def ollama_generate_response(model, messages):
 # Get responses from chatgpt; cost is based on tokens and model type
 # See ./.streamlist/secrets.toml for environment variants visible to
 # streamlit.
-def generate_response(model, messages):
+def generate_response(model, max_tokens, messages):
 
     from openai import OpenAI
     from os import getenv
 
-    if model_map[model] == "openrouter":
+    if model_map[model]['vendor'] == "openrouter":
 
         # Openrouter can use the OpenAI API but we need their base URL and API key
         base_url = "https://openrouter.ai/api/v1"
         api_key=getenv("OPENROUTER_API_KEY")
         client = OpenAI(base_url=base_url, api_key=api_key)
-    elif model_map[model] == "openai":
+    elif model_map[model]['vendor'] == "openai":
         api_key = getenv("OPENAI_API_KEY")
         client = OpenAI(api_key=api_key)
     else:
@@ -276,13 +286,13 @@ def generate_response(model, messages):
     try:
         completion = client.chat.completions.create(
             model=model,
-            messages=messages
+            messages=messages,
+            max_tokens=max_tokens
         )
         response = completion.choices[0].message.content.strip('\n')
     except Exception as e:
-        error_text = f"Error in {model_map[model]} server: Error: {str(e)}"
+        error_text = f"Error in {model_map[model]['vendor']} server: Error: {str(e)}"
         response = error_text
-        print(f"{response}")
         return response, 0, 0, 0
 
     total_tokens = completion.usage.total_tokens
@@ -312,10 +322,10 @@ with prompt_container:
 
         # During inference, the user can click buttons which will abort the inference.
         with st.spinner("Thinking..."):
-            if model_map[selected_model_name] == "openai" or model_map[selected_model_name] == "openrouter":
-                output, total_tokens, prompt_tokens, completion_tokens = generate_response(selected_model_name, tmp_messages)
-            elif model_map[selected_model_name] == "ollama":
-                output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(selected_model_name, tmp_messages)
+            if model_map[selected_model_name]['vendor'] == "openai" or model_map[selected_model_name]['vendor'] == "openrouter":
+                output, total_tokens, prompt_tokens, completion_tokens = generate_response(selected_model_name, max_tokens, tmp_messages)
+            elif model_map[selected_model_name]['vendor'] == "ollama":
+                output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(selected_model_name, max_tokens, tmp_messages)
             else:
                 output = f"Error: model {selected_model_name} not found in our list"
                 total_tokens = prompt_tokens = completion_tokens = 0
@@ -353,9 +363,5 @@ if st.session_state['assistant']:
                 # 👱‍♀️ , 👱‍♀️, 🧑🏻‍🦰
                 with st.chat_message('assistant', avatar='https://raw.githubusercontent.com/dataprofessor/streamlit-chat-avatar/master/bot-icon.png'):
                      st.write(st.session_state['assistant'][i])
-            if model_map[st.session_state['model_name'][i]] == "openai" or \
-               model_map[st.session_state['model_name'][i]] == "openrouter" or \
-               model_map[st.session_state['model_name'][i]] == "ollama":
-                st.write(
-                    f"Model: {st.session_state['model_name'][i]}; Tokens: {st.session_state['total_tokens'][i]}; Cost: ${st.session_state['cost'][i]:.5f}")
-                counter_placeholder.write(f"Total cost of conversation: ${st.session_state['total_cost']:.5f}")
+            st.write(f"Model: {st.session_state['model_name'][i]}; Tokens: {st.session_state['total_tokens'][i]}; Cost: ${st.session_state['cost'][i]:.5f}")
+            counter_placeholder.write(f"Total cost of conversation: ${st.session_state['total_cost']:.5f}")
