@@ -73,46 +73,44 @@ if 'total_cost' not in st.session_state:
 max_tokens = 512
 
 # We use a map for the model name and the API type.  This is so we can
-# use the correct API for the model.  We have 3 types of models:
+# use the correct API for the model.  We have 4 types of models:
 # 1. ollama - a locally running model
 # 2. openai - a model from OpenAI
 # 3. openrouter - a model from OpenRouter
+# 4. deepseek - a model from DeepSeek
 # The "test" model is for error testing
 # For paid models, we track the cost of the conversation so add code below
 # to calculate cost and a comment to the link to the pricing page.
-# IMPORTANT: the paid models need to show up here and in the calculate_cost function.
-# If it doesn't, the cost will be $0 -- and will not let you know you're spending money.
+# see https://openai.com/pricing#language-models
+# see https://openrouter.ai/models (cost is differet for each model)
+# for other models (like ollama based), we don't update cost.
 model_map = {
-    "llama3:8b": {"vendor": "ollama", "context_size": 4096},
-    "deepseek-coder:6.7b": {"vendor": "ollama", "context_size": 4096},
-    "llama2-uncensored:7b": {"vendor": "ollama", "context_size": 4096},
-    "wizard-vicuna-uncensored:13b": {"vendor": "ollama", "context_size": 4096},
-    "dolphin-mixtral:8x7b-v2.7-q4_K_M": {"vendor": "ollama", "context_size": 4096},
-    "codellama:13b-python-q4_K_M": {"vendor": "ollama", "context_size": 4096},
-    "llama3-gradient:8b": {"vendor": "ollama", "context_size": 4096},
+    "llama3:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "deepseek-coder:6.7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "llama2-uncensored:7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "wizard-vicuna-uncensored:13b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "dolphin-mixtral:8x7b-v2.7-q4_K_M": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "codellama:13b-python-q4_K_M": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
+    "llama3-gradient:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "--- Below spends Money ---": "ollama",
-    "gpt-3.5-turbo-0125": {"vendor": "openai", "context_size": 16384},
-    "gpt-4-turbo-2024-04-09": {"vendor": "openai", "context_size": 128000},
-    "mistralai/mixtral-8x7b-instruct": {"vendor": "openrouter", "context_size": 32768},
-    "openai/gpt-3.5-turbo-0125": {"vendor": "openrouter", "context_size": 16384},
-    "anthropic/claude-3-haiku": {"vendor": "openrouter", "context_size": 200000},
+    "gpt-3.5-turbo-0125": {"vendor": "openai", "context_size": 16384, "input_token_cost": 0.50, "output_token_cost": 1.50},
+    "gpt-4-turbo-2024-04-09": {"vendor": "openai", "context_size": 128000, "input_token_cost": 10.00, "output_token_cost": 30.00},
+    "mistralai/mixtral-8x7b-instruct": {"vendor": "openrouter", "context_size": 32768, "input_token_cost": 0.24, "output_token_cost": 0.24},
+    "openai/gpt-3.5-turbo-0125": {"vendor": "openrouter", "context_size": 16384, "input_token_cost": 0.50, "output_token_cost": 1.50},
+    "anthropic/claude-3-haiku": {"vendor": "openrouter", "context_size": 200000, "input_token_cost": 0.25, "output_token_cost": 1.25},
+    "deepseek-chat": {"vendor": "deepseek", "context_size": 32768, "input_token_cost": 0.14, "output_token_cost": 0.28},
+    "deepseek-coder": {"vendor": "deepseek", "context_size": 16384, "input_token_cost": 0.14, "output_token_cost": 0.28},
 }
 
 def calculate_cost(prompt_tokens, completion_tokens, model_name):
-    # see https://openai.com/pricing#language-models
-    # see https://openrouter.ai/models (cost is differet for each model)
-    # for other models (like ollama based), we don't update cost.
     cost = 0.0
-    if model_name == "gpt-3.5-turbo-0125":
-        cost = (prompt_tokens * 0.50 + completion_tokens * 1.50) / 1000000
-    elif model_name == "gpt-4-turbo-2024-04-09":
-        cost = (prompt_tokens * 10.00 + completion_tokens * 30.00) / 1000000
-    elif model_name == "mistralai/mixtral-8x7b-instruct":
-        cost = (prompt_tokens * 0.24 + completion_tokens * .24) / 1000000
-    elif model_name == "openai/gpt-3.5-turbo-0125":
-        cost = (prompt_tokens * 0.50 + completion_tokens * 1.50) / 1000000
-    elif model_name == "anthropic/claude-3-haiku":
-        cost = (prompt_tokens * 0.25 + completion_tokens * 1.25) / 1000000
+    if model_name in model_map:
+        input_token_cost = model_map[model_name].get("input_token_cost", 0)
+        output_token_cost = model_map[model_name].get("output_token_cost", 0)
+        cost = (prompt_tokens * input_token_cost + completion_tokens * output_token_cost) / 1000000
+    else:
+        print(f"Model {model_name} not found in our list")
+        return f"cost is invalid for this model: {model_name}"
     return cost
 
 # Sidebar - used to show the conversation title and model selection
@@ -123,13 +121,14 @@ with st.sidebar:
     # Create the model selector based on the keys of models_map.
     model_menu_items = list(model_map.keys())
     selected_model_name = st.radio("Choose a model:", model_menu_items)
-    if model_map[selected_model_name]['vendor'] == "openai" or \
-        model_map[selected_model_name]['vendor'] == "openrouter":
+    if model_map[selected_model_name]['input_token_cost'] > 0 or model_map[selected_model_name]['output_token_cost'] > 0:
         max_tokens = st.slider("Max tokens", min_value=20,
                                              max_value=model_map[selected_model_name]['context_size'],
                                              value=512, step=1)
     counter_placeholder = st.empty()
-    counter_placeholder.write(f"Total cost of this conversation: ${st.session_state['total_cost']:.5f}")
+    tmp_input_cost = model_map[selected_model_name].get("input_token_cost", 0)
+    tmp_output_cost = model_map[selected_model_name].get("output_token_cost", 0)
+    counter_placeholder.write(f"Total cost (model: \${tmp_input_cost:.2f}, \${tmp_output_cost:.2f}): ${st.session_state['total_cost']:.2f}")
     uploaded_file = st.file_uploader("Load Conversation", type="json", key=f"load{st.session_state['uploaded_file_key']}", help="Load a conversation from a JSON file")
 
     file_name = st.text_input('File to export to:', 'termi-chat1.json')
