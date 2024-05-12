@@ -128,6 +128,7 @@ with st.sidebar:
         max_tokens = st.slider("Max tokens", min_value=20,
                                              max_value=model_map[selected_model_name]['context_size'],
                                              value=512, step=1)
+    temperature = st.slider("temperature", min_value=0.0, max_value=2.0, value=0.8, step=.1)
     counter_placeholder = st.empty()
     tmp_input_cost = model_map[selected_model_name].get("input_token_cost", 0)
     tmp_output_cost = model_map[selected_model_name].get("output_token_cost", 0)
@@ -248,7 +249,9 @@ def extract_role_and_content(input_messages):
 
 # Get responses from ollama models.  Cost = $0
 # Sadly, ollma api doesn't support max_tokens so we can't use it.
-def ollama_generate_response(model, max_tokens, messages):
+# https://github.com/ollama/ollama/blob/4ec7445a6f678b6efc773bb9fa886d7c9b075577/docs/modelfile.md#valid-parameters-and-values
+# default temperature = 0.8
+def ollama_generate_response(model, max_tokens, messages, temperature):
 
     from ollama import Client
     client = Client(host='http://localhost:11434')
@@ -256,7 +259,10 @@ def ollama_generate_response(model, max_tokens, messages):
     try:
         completion = client.chat(
             model=model,
-            messages=messages
+            messages=messages,
+            options = {
+                "temperature": temperature
+            }
         )
         response = completion['message']['content'].strip()
     except Exception as e:
@@ -273,7 +279,7 @@ def ollama_generate_response(model, max_tokens, messages):
 # Get responses from chatgpt; cost is based on tokens and model type
 # See ./.streamlist/secrets.toml for environment variants visible to
 # streamlit.
-def generate_response(model, max_tokens, messages):
+def generate_response(model, max_tokens, messages, temperature):
 
     from openai import OpenAI
     from os import getenv
@@ -303,7 +309,8 @@ def generate_response(model, max_tokens, messages):
         completion = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            temperature=temperature
         )
         response = completion.choices[0].message.content.strip('\n')
     except Exception as e:
@@ -341,9 +348,9 @@ with prompt_container:
             if model_map[selected_model_name]['vendor'] == "openai" or \
                 model_map[selected_model_name]['vendor'] == "openrouter" or \
                 model_map[selected_model_name]['vendor'] == "deepseek":
-                output, total_tokens, prompt_tokens, completion_tokens = generate_response(selected_model_name, max_tokens, tmp_messages)
+                output, total_tokens, prompt_tokens, completion_tokens = generate_response(selected_model_name, max_tokens, tmp_messages, temperature)
             elif model_map[selected_model_name]['vendor'] == "ollama":
-                output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(selected_model_name, max_tokens, tmp_messages)
+                output, total_tokens, prompt_tokens, completion_tokens = ollama_generate_response(selected_model_name, max_tokens, tmp_messages, temperature)
             else:
                 output = f"Error: model {selected_model_name} not found in our list"
                 total_tokens = prompt_tokens = completion_tokens = 0
