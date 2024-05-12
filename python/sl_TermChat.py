@@ -196,7 +196,7 @@ if uploaded_file != None and uploaded_file != st.session_state['uploaded_file']:
             st.session_state['timestamp'].append(msg.get('timestamp', "2024-09-09-09:09"))
 
     st.session_state['system_context'] = system_context
-    print(f"Loaded conversation: {uploaded_file.name}")
+    print(f"Loaded conversation: {uploaded_file}")
 
     # Fill in the user and assistant lists
     st.session_state['user'] = []
@@ -376,10 +376,10 @@ if st.session_state['assistant']:
             #     st.write(st.session_state['user'][i])
             message(st.session_state['user'][i], is_user=True, key=str(i) + '_user')
             if st.session_state['output_mode'] == "old":
-                message(st.session_state['assistant'][i], key=str(i), avatar_style='adventurer')
+                message(st.session_state['assistant'][i].replace('\t', '    '), key=str(i), avatar_style='adventurer')
             else:
                 # 👱‍♀️ , 👱‍♀️, 🧑🏻‍🦰
                 with st.chat_message('assistant', avatar='https://raw.githubusercontent.com/dataprofessor/streamlit-chat-avatar/master/bot-icon.png'):
-                     st.write(st.session_state['assistant'][i])
+                     st.write(st.session_state['assistant'][i].replace('\t', '    '))
             st.write(f"Model: {st.session_state['model_name'][i]}; Tokens: {st.session_state['total_tokens'][i]}; Cost: ${st.session_state['cost'][i]:.5f}")
             counter_placeholder.write(f"Total cost of conversation: ${st.session_state['total_cost']:.5f}")
