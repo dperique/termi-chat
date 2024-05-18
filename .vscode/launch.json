@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "debug streamlit",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/Users/dperiquet/anaconda3/envs/termi-chat/bin/streamlit",
+            "args": [
+                "run",
+                "--browser.gatherUsageStats", "false",
+                "--server.port", "8511",
+                "--theme.base", "dark",
+                "/Users/dperiquet/mygit/dperique/NG/Dennis/Redhat/dennis/termi-chat/python/sl_TermChat.py",
+                "conversation1"
+            ]
+        }
+    ]
+}
