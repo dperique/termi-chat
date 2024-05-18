@@ -1,4 +1,7 @@
+<div align="center">
+
 # Termi-Chat: Terminal based LLM chatbot
+</div>
 
 <div align="center">
     <img src="logo/termi-chat.png" alt="termi-chat logo">
@@ -7,7 +10,8 @@
 Termi-Chat is a chatbot similar to the ChatGPT webUI but requires only a terminal.
 
 Some of us like webapges but sometimes you just want a terminal, for the former,
-see chat.opanai.com, for the latter, termi-chat is for you.
+see chat.opanai.com (or termi-chat's improvised [streamlit version](#the-streamlit-version)), for
+the latter, termi-chat is for you.
 
 NOTE: there are a ton of chatbots that use the OpenAI API.  The `termi-chat`
 app solves my particular style of use: speed, custom (editable) context, with
@@ -311,52 +315,19 @@ Workaround: use [run_container.sh](./utilities/run_container.sh) which creates a
 $ cat conversation.json |jq -r '.[3].content'`
 ```
 
+## The streamlit version
 
-## Getting ollama to work
+Well sometimes it's nice to have a webui. So I improvised a streamlit version.
 
-These are notes from [ollama api docs](https://github.com/ollama/ollama/blob/main/docs/api.md) which can be used
-later for enhancements regarding ollama:
-
-### example curl
+This version is run via a webpage and streamlit like this:
 
 ```bash
-$ curl http://localhost:11434/api/generate -d '{
-  "model": "llama2",
-  "prompt": "Why is the sky blue?",
-  "stream": false
-}'
-{"model":"llama2","created_at":"2024-02-06T21:57:46.258709647Z","response":"\nThe sky appears blue because of a phenomenon called Rayleigh scattering, which occurs when sunlight enters the Earth's atmosphere. The sunlight encounters tiny molecules of gases in the air, such as nitrogen and oxygen, which scatters the light in all directions.\n\nThe shorter wavelengths of light, such as blue and violet, a
+streamlit run --browser.gatherUsageStats false --server.port 8501 --theme.base dark python/sl_TermChat.py conversation1
 ```
 
-Chat with history (termi-chat already does this so ollama support could just be a "drop in"):
+In the streamlit app, we use a limited set of model choices and still allow you to
+save and load previous chats.
 
-```bash
-curl http://localhost:11434/api/chat -d '{
-  "model": "llama2",
-  "messages": [
-    {
-      "role": "user",
-      "content": "why is the sky blue?"
-    },
-    {
-      "role": "assistant",
-      "content": "due to rayleigh scattering."
-    },
-    {
-      "role": "user",
-      "content": "how is that different than mie scattering?"
-    }
-  ]
-}'
-```
-
-### requesting a new model
-
-Ollama allows switching models which might mean making a dynamic menu; this one switches
-to `llama2` but assumes that model is already available at the ollama instance:
-
-```bash
-curl http://localhost:11434/api/generate -d '{
-  "model": "llama2"
-}'
-```
+<div align="center">
+    <img src="logo/termi-chat-sl.png" alt="termi-chat-sl">
+</div>
