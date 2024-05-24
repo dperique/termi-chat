@@ -97,6 +97,7 @@ model_map = {
     "llama3-gradient:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "--- Below spends Money ---": "ollama",
     "gpt-3.5-turbo-0125": {"vendor": "openai", "context_size": 16384, "input_token_cost": 0.50, "output_token_cost": 1.50},
+    "gpt-4o": {"vendor": "openai", "context_size": 128000, "input_token_cost": 5.00, "output_token_cost": 15.00},
     "gpt-4-turbo-2024-04-09": {"vendor": "openai", "context_size": 128000, "input_token_cost": 10.00, "output_token_cost": 30.00},
     "mistralai/mixtral-8x7b-instruct": {"vendor": "openrouter", "context_size": 32768, "input_token_cost": 0.24, "output_token_cost": 0.24},
     "openai/gpt-3.5-turbo-0125": {"vendor": "openrouter", "context_size": 16384, "input_token_cost": 0.50, "output_token_cost": 1.50},
