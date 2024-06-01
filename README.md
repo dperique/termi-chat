@@ -331,3 +331,20 @@ save and load previous chats.
 <div align="center">
     <img src="logo/termi-chat-sl.png" alt="termi-chat-sl">
 </div>
+
+### Setup for systemd for streamlit version of termi-chat
+
+Fixup the two files in the [systemd-service](./systemd-service) subdir.
+
+Copy `termi-chat-start.sh` to `/usr/local/bin`.
+Copy `termi-chat.service` to `/etc/systemd/system`.
+
+Then do this:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable termi-chat.service
+sudo systemctl start termi-chat.service
+sudo systemctl status termi-chat.service
+journalctl -fu termi-chat
+```

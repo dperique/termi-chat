@@ -1,0 +1,16 @@
+[Unit]
+Description=Termi Chat Streamlit Application
+After=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/termi-chat-startup.sh
+User=some-user
+Group=some-user
+Restart=always
+RestartSec=3
+Environment="PATH=/home/some-user/anaconda3/envs/some-conda-env/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="CONDA_DEFAULT_ENV=some-conda-env"
+Environment="CONDA_PREFIX=/home/some-user/anaconda3/envs/some-conda-env"
+
+[Install]
+WantedBy=default.target
