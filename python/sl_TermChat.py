@@ -89,7 +89,7 @@ max_tokens = 512
 # for other models (like ollama based), we don't update cost.
 model_map = {
     "llama3:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
-    "llama3.1:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
+    "llama3.1:latest": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "deepseek-coder:6.7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "llama2-uncensored:7b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
     "wizard-vicuna-uncensored:13b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0, "output_token_cost": 0},
