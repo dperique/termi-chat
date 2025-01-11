@@ -90,6 +90,7 @@ max_tokens = 512
 model_map = {
     "llama3:8b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "llama3.1:latest": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
+    "mistral-small:22b-instruct-2409-q4_K_M": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "qwen2.5-coder:14b": {"vendor": "ollama", "context_size": 32768, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "qwen2.5-coder:32b": {"vendor": "ollama", "context_size": 4096, "input_token_cost": 0.1, "output_token_cost": 0.1},
     "qwen2.5:32b": {"vendor": "ollama", "context_size": 128000, "input_token_cost": 0.1, "output_token_cost": 0.1},
